@@ -50,6 +50,8 @@ ksp {
 
 dependencies {
     implementation(project(":bili-api"))
+    // Prefs 以 SponsorCategory 作为偏好项类型，需对外暴露该模块的类型
+    implementation(project(":sponsorblock"))
 
     implementation(libs.androidx.datastore)
     implementation(libs.androidx.datastore.preferences)

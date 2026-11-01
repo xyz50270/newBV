@@ -119,6 +119,7 @@ dependencies {
     // === Project modules ===
     implementation(project(":bili-api"))
     implementation(project(":bili-subtitle"))
+    implementation(project(":sponsorblock"))
     implementation(project(":player"))
     implementation(project(":danmaku"))
     implementation(project(":core"))

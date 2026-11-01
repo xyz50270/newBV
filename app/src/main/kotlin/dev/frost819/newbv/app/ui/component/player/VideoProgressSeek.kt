@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -21,6 +22,11 @@ import dev.frost819.newbv.core.theme.BVTheme
  * 三段轨道用「色相 + 明度」双重区分，避免混在一起：
  * 已播放用品牌色（primary），已缓冲用较亮的中性灰，未缓冲用很暗的中性灰。
  * 播放器固定运行在深色主题下，均能保证黑底上的可见性。
+ *
+ * 若传入 [markers]（SponsorBlock 片段区段），会把轨道对应区间染成该片段的分类色，
+ * 用不同颜色标识各类可跳过片段。绘制顺序为「背景 → 缓冲 → 区段 → 播放进度」：
+ * 区段必须盖在缓冲之上，否则半透明缓冲色会把分类色冲淡；已播放段仍由品牌色覆盖，
+ * 视觉上不干扰当前进度。
  * 支持两种显示模式：
  * - **常显模式**（[isPersistentSeek] = true）：2dp 细线，不显示缓冲进度，
  *   用于播放器底部始终可见的进度条。
@@ -32,6 +38,7 @@ import dev.frost819.newbv.core.theme.BVTheme
  * @param position 当前播放位置（毫秒）
  * @param bufferedPercentage 缓冲百分比（0-100）
  * @param isPersistentSeek 是否为常显模式
+ * @param markers 可跳过片段的区段标识，空列表时不绘制
  */
 @Composable
 fun VideoProgressSeek(
@@ -40,6 +47,7 @@ fun VideoProgressSeek(
     position: Long,
     bufferedPercentage: Int,
     isPersistentSeek: Boolean,
+    markers: List<SeekMarker> = emptyList(),
 ) {
     val trackWidthDp = if (isPersistentSeek) 2.dp else 8.dp
     val activeTrackColor = MaterialTheme.colorScheme.primary
@@ -73,6 +81,34 @@ fun VideoProgressSeek(
                 strokeWidth = trackWidthPx,
                 cap = StrokeCap.Round,
             )
+        }
+
+        // 可跳过片段区段（盖在缓冲之上，否则半透明缓冲色会把分类色冲淡）
+        if (markers.isNotEmpty()) {
+            val durationMs = duration
+            if (durationMs > 0L) {
+                markers.forEach { marker ->
+                    val startRatio = (marker.startMs.toFloat() / durationMs).coerceIn(0f, 1f)
+                    val endRatio = (marker.endMs.toFloat() / durationMs).coerceIn(0f, 1f)
+                    val startX = size.width * startRatio
+                    val endX = size.width * endRatio
+                    // 极短片段至少保留 2dp 可见宽度，否则用户完全看不到该区段存在
+                    val minWidthPx = 2.dp.toPx()
+                    val drawnEndX =
+                        if (endX - startX < minWidthPx) {
+                            (startX + minWidthPx).coerceAtMost(size.width)
+                        } else {
+                            endX
+                        }
+                    drawLine(
+                        color = marker.color,
+                        start = Offset(startX, center.y),
+                        end = Offset(drawnEndX, center.y),
+                        strokeWidth = trackWidthPx,
+                        cap = StrokeCap.Round,
+                    )
+                }
+            }
         }
 
         // 播放进度
@@ -113,6 +149,12 @@ private fun VideoProgressSeekNormalPreview() {
             position = 35_000L,
             bufferedPercentage = 60,
             isPersistentSeek = false,
+            markers =
+                listOf(
+                    SeekMarker(10_000L, 20_000L, Color(0xFF00D400)),
+                    SeekMarker(40_000L, 52_000L, Color(0xFFFFFF00)),
+                    SeekMarker(70_000L, 72_000L, Color(0xFFCC00FF)),
+                ),
         )
     }
 }

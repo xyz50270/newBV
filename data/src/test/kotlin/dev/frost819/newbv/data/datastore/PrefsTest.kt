@@ -3,7 +3,10 @@ package dev.frost819.newbv.data.datastore
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import com.google.common.truth.Truth.assertThat
+import dev.frost819.newbv.sponsorblock.entity.SponsorCategory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -286,6 +289,63 @@ class PrefsTest {
 
             assertThat(Prefs.defaultDanmakuTypes).containsExactly(DanmakuType.Top, DanmakuType.Bottom)
         }
+
+    @Test
+    fun `sponsor block defaults to disabled with sponsor category`() {
+        assertThat(Prefs.sponsorBlockEnabled).isFalse()
+        assertThat(Prefs.sponsorBlockCategories).containsExactly(SponsorCategory.Sponsor)
+    }
+
+    @Test
+    fun `sponsor block categories persist by api name`() {
+        runBlocking {
+            Prefs.sponsorBlockEnabled = true
+            Prefs.sponsorBlockCategories =
+                listOf(SponsorCategory.Intro, SponsorCategory.Sponsor, SponsorCategory.Outro)
+
+            awaitAsyncWrite()
+
+            assertThat(Prefs.sponsorBlockEnabled).isTrue()
+            assertThat(Prefs.sponsorBlockCategories)
+                .containsExactly(SponsorCategory.Intro, SponsorCategory.Sponsor, SponsorCategory.Outro)
+        }
+    }
+
+    @Test
+    fun `sponsor block categories empty list means skip nothing`() =
+        runBlocking {
+            Prefs.sponsorBlockCategories = emptyList()
+
+            awaitAsyncWrite()
+
+            assertThat(Prefs.sponsorBlockCategories).isEmpty()
+        }
+
+    @Test
+    fun `sponsor block categories drop unknown api names on restore`() {
+        runBlocking {
+            // 直接写原始字符串，模拟服务端新增分类后被本版本读到的情况
+            dataStore.edit { it[stringPreferencesKey("sponsor_block_categories")] = "sponsor,brandNew,intro" }
+            Prefs.resetForTesting()
+            Prefs.init(dataStore)
+
+            assertThat(Prefs.sponsorBlockCategories)
+                .containsExactly(SponsorCategory.Sponsor, SponsorCategory.Intro)
+        }
+    }
+
+    @Test
+    fun `sponsor block categories survive reinit`() {
+        runBlocking {
+            Prefs.sponsorBlockCategories = listOf(SponsorCategory.Intro)
+            awaitAsyncWrite()
+
+            Prefs.resetForTesting()
+            Prefs.init(dataStore)
+
+            assertThat(Prefs.sponsorBlockCategories).containsExactly(SponsorCategory.Intro)
+        }
+    }
 
     @Test
     fun `write persists to DataStore and survives reinit`() =

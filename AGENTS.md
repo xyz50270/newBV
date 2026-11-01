@@ -45,6 +45,7 @@ newBV/
 ├── bili-api/               # [待迁移] B 站 HTTP + gRPC 接口封装（从 bv/ 迁移）
 ├── bili-api-grpc/          # [待迁移] Protobuf 定义（从 bv/ 迁移）
 ├── bili-subtitle/          # [待迁移] 字幕解析（从 bv/ 迁移）
+├── sponsorblock/           # 社区标注片段（广告/片头）跳过：API 客户端 + 跳过判定（纯 JVM）
 ├── player/                 # [待建] 播放器引擎抽象 + Media3 实现（从 bv/bv-player 迁移）
 ├── danmaku/                # [待建] 弹幕渲染封装（从 bv/app 散落代码抽取）
 ├── docs/
@@ -1769,3 +1770,88 @@ BVTheme(themeMode = ThemeMode.Dark, density = ..., surfaceColor = Color.Black) {
 注意：`TvSurface` 的 `contentColor` 必须**显式**给 `colorScheme.onSurface`。`SurfaceDefaults.colors` 默认是 `contentColor = contentColorFor(containerColor)`；`ColorScheme.contentColorFor` 只对配色方案中已有的容器色配对，`Color.Black` 配不上会返回 `Unspecified`，composable 版 `contentColorFor` 再用 `takeOrElse { LocalContentColor.current }` 回退到**外层继承**的内容色（浅色 App 主题下是深色文字），叠在黑底上会看不见。原实现 `containerColor = colorScheme.surface` 恰好命中 `surface` 才自动得到 `onSurface`——**改 containerColor 会连带影响 contentColor 的自动配对**。
 
 **备选**：① 在主题内层、content 之前再铺一层黑 Box（局部绕过）；② 让 `TvSurface` 恒透明、背景交给 `MainActivity` 的 `Surface`；③ 拆分"提供配色"与"绘制 Surface"两个 composable（最彻底）。当前只有 `MainActivity` + 两个播放器 Controller 三处调用 `BVTheme`，改动面很小。
+
+### 11.15 SponsorBlock 广告片段自动跳过
+
+接入 [hanydd/BilibiliSponsorBlock](https://github.com/hanydd/BilibiliSponsorBlock) 的社区标注数据，
+在播放时自动跳过赞助推广等片段。相关模块与文件：
+
+| 位置 | 职责 |
+|---|---|
+| `sponsorblock/`（纯 JVM） | `SponsorBlockApi`（HTTP + JSON 解析）、`SponsorSkipTracker`（命中判定 + 去重） |
+| `app/data/SponsorBlockRepository.kt` | 进程内 LRU 缓存（键 = bvid + cid + 分类集合） |
+| `app/viewmodel/player/SponsorBlockViewModel.kt` | 加载、进度喂入、一次性跳过事件、提示文本 |
+| `app/ui/screen/player/VideoPlayerScreen.kt` | 协调者：加载、喂进度、执行 seek |
+| 设置 → 跳过广告（独立分类） | 总开关 + 片段类型多选 + 数据来源说明 |
+| 播放器菜单 → 跳过广告（Tab） | 开关 / 片段类型 / 撤销跳过 / 重新加载 |
+| 播放进度条 | 可跳过片段按分类染色标识（常显条与交互条都有） |
+| 自定义快捷键 | `toggle_sponsor_block` |
+
+#### 11.15.1 接口要点
+
+- 服务端 `https://bsbsb.top/api/skipSegments`，必带 `origin` 与 `x-ext-version` 请求头
+- `videoID` 用 **BVID**（`aid.toBv()` 转换），可选 `cid` 只取该分 P 的片段
+- `categories` 是 **JSON 数组字符串**（`["sponsor"]`），不是逗号分隔
+- 无数据可能返回 `404` 也可能返回 `200 []`，两种都按「无片段」处理
+- 只处理 `actionType == "skip"`；`mute`（静音）、`full`（整段视频）不在跳过语义内
+
+#### 11.15.2 跳过判定放在纯 JVM 模块
+
+判定逻辑（重叠片段取最晚结束、同片段只跳一次、用户拖回后重新触发）抽成
+`SponsorSkipTracker` 并放在 `sponsorblock/`，不依赖 Android，可完整单测。
+ViewModel 只做「加载 + 喂位置 + 发事件」，不持有播放器引用。
+
+#### 11.15.3 用进度喂入通道驱动，不新增轮询
+
+复用 `seekerState.currentTime`（10Hz）同时喂给 `DanmakuViewModel` 和
+`SponsorBlockViewModel`，与 11.13.4 同源：ViewModel 内若有自调度循环，
+测试的 `advanceUntilIdle` 会无限推进。命中后通过 `SharedFlow` 发一次性事件，
+UI 收到后调 `PlayerViewModel.seekToTime(segment.endMs)`——seek 会自然带动
+弹幕引擎时钟对齐（见 11.10.9），无需额外同步。
+
+#### 11.15.4 事件必须带 aid/cid 并校验归属
+
+播放页被详情页覆盖期间 `SharedFlow` 会缓冲事件，返回时可能收到旧视频的跳转。
+`SponsorSkipEvent` 带上 `aid`/`cid`，UI 侧校验与当前 `uiState` 一致才执行。
+若 `tryEmit` 失败（缓冲满且无人收集），必须 `tracker.forget(uuid)` 回滚跳过记录，
+否则该片段在本轮播放内永远不会再触发。
+
+#### 11.15.5 番剧与空分类要短路
+
+番剧分集没有可用的 BV 号（BVID 只针对 UGC），`loadFor(isPgc = true)` 直接跳过查询。
+用户取消全部片段类型时同理：服务端在 `categories` 缺失/为空时会退回全部分类，
+反而会跳不该跳的内容，因此空分类必须在客户端短路。
+
+#### 11.15.6 配置入口必须两处都有
+
+TV 端用户不会为了一个开关退出播放器，只在设置页提供入口会让人以为功能不存在
+（首版就踩了这个坑：入口藏在「播放设置」长列表底部，实际已实现但看不到）。
+因此：
+
+- 设置页独立成「跳过广告」分类，不并入「播放设置」
+- 播放器菜单新增「跳过广告」Tab，提供开关、片段类型、撤销跳过、重新加载
+- 撤销跳过只能撤销一次（`lastSkipped` 用后即清），且该片段的跳过记录保留，
+  回跳后不会被立刻再次跳过，用户能完整看完这一段
+
+#### 11.15.7 进度条区段标识必须同时保证「可见」与「可区分」
+
+进度条把可跳过片段按分类染色（`sponsorSeekMarkers` + `SponsorCategory.markerColor`），
+绘制顺序是「背景 → 缓冲 → 区段 → 播放进度」：区段必须盖在缓冲之上，否则半透明
+缓冲色会把分类色冲淡；已播放段仍由品牌色覆盖，不干扰当前进度。
+
+配色不是照搬上游，而是按两条硬约束确定（`SponsorSeekMarkersTest` 里有断言守护）：
+
+1. **对纯黑对比度 ≥ 3:1**：8dp 细线上过暗的颜色等于不存在。上游片尾蓝 `#0202ED`
+   只有 2.23:1，已调亮为 `#3D5BFF`（4.14:1）。
+2. **两两 CIELAB ΔE ≥ 20**：12 个分类铺满色相环，仅靠色相差不够。上游
+   `padding`/`poi_highlight` 同属粉色系、`jumpscare`/`exclusive_access` 同属红色系，
+   实测 ΔE 不足 20，已分别拉开明度与色相（当前最小 ΔE 27.3）。
+
+另外：极短片段在绘制时至少保留 2dp 宽度，否则用户完全看不到该区段存在；
+设置页与播放器菜单的类型列表都带同色色块，用户可对照颜色与类型名称。
+
+#### 11.15.8 测试注意
+
+`SponsorBlockRepositoryTest` 用 `runBlocking` 而非 `runTest`：`runTest` 会在测试
+开始前检查未捕获异常，全量运行 `:app:testDebugUnitTest` 时会受其它测试类
+（Robolectric DataStore 文件冲突）泄漏的异常牵连而误报失败。

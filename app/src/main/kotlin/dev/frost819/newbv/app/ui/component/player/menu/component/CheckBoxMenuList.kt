@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -30,6 +31,7 @@ import dev.frost819.newbv.app.ui.component.player.ifElse
  * @param selected 已选中项索引列表
  * @param onSelectedChanged 选中变化回调（返回新的选中索引列表）
  * @param onFocusBackToParent 返回父级回调
+ * @param swatchColors 与 [items] 等长的色块颜色；元素为 null 的位置不显示色块
  */
 @Composable
 fun CheckBoxMenuList(
@@ -38,6 +40,7 @@ fun CheckBoxMenuList(
     selected: List<Int> = listOf(),
     onSelectedChanged: (indexes: List<Int>) -> Unit,
     onFocusBackToParent: () -> Unit,
+    swatchColors: List<Color?>? = null,
 ) {
     val focusRequester = remember { FocusRequester() }
     LazyColumn(
@@ -74,6 +77,7 @@ fun CheckBoxMenuList(
                     }
                     onSelectedChanged(newSelectedIndexes)
                 },
+                swatchColor = swatchColors?.getOrNull(index),
             )
         }
     }

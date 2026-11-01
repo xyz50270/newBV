@@ -8,18 +8,19 @@ import org.junit.jupiter.api.Test
  */
 class SettingsMenuNavItemTest {
     @Test
-    fun enum_hasSixEntries() {
-        assertThat(SettingsMenuNavItem.entries).hasSize(6)
+    fun enum_hasSevenEntries() {
+        assertThat(SettingsMenuNavItem.entries).hasSize(7)
     }
 
     @Test
     fun enum_entriesInExpectedOrder() {
         assertThat(SettingsMenuNavItem.entries[0]).isEqualTo(SettingsMenuNavItem.AudioVideo)
-        assertThat(SettingsMenuNavItem.entries[1]).isEqualTo(SettingsMenuNavItem.UI)
-        assertThat(SettingsMenuNavItem.entries[2]).isEqualTo(SettingsMenuNavItem.Other)
-        assertThat(SettingsMenuNavItem.entries[3]).isEqualTo(SettingsMenuNavItem.Storage)
-        assertThat(SettingsMenuNavItem.entries[4]).isEqualTo(SettingsMenuNavItem.Info)
-        assertThat(SettingsMenuNavItem.entries[5]).isEqualTo(SettingsMenuNavItem.About)
+        assertThat(SettingsMenuNavItem.entries[1]).isEqualTo(SettingsMenuNavItem.SponsorBlock)
+        assertThat(SettingsMenuNavItem.entries[2]).isEqualTo(SettingsMenuNavItem.UI)
+        assertThat(SettingsMenuNavItem.entries[3]).isEqualTo(SettingsMenuNavItem.Other)
+        assertThat(SettingsMenuNavItem.entries[4]).isEqualTo(SettingsMenuNavItem.Storage)
+        assertThat(SettingsMenuNavItem.entries[5]).isEqualTo(SettingsMenuNavItem.Info)
+        assertThat(SettingsMenuNavItem.entries[6]).isEqualTo(SettingsMenuNavItem.About)
     }
 
     @Test
@@ -32,6 +33,7 @@ class SettingsMenuNavItemTest {
     @Test
     fun displayNames_knownValues() {
         assertThat(SettingsMenuNavItem.AudioVideo.displayName).isEqualTo("播放设置")
+        assertThat(SettingsMenuNavItem.SponsorBlock.displayName).isEqualTo("跳过广告")
         assertThat(SettingsMenuNavItem.UI.displayName).isEqualTo("界面设置")
         assertThat(SettingsMenuNavItem.Other.displayName).isEqualTo("更多设置")
         assertThat(SettingsMenuNavItem.Storage.displayName).isEqualTo("存储管理")

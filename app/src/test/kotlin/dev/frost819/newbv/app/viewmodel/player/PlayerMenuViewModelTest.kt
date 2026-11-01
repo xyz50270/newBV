@@ -25,6 +25,35 @@ class PlayerMenuViewModelTest {
         assertThat(state.selectedPictureItem).isNull()
         assertThat(state.selectedDanmakuItem).isNull()
         assertThat(state.selectedClosedCaptionItem).isNull()
+        assertThat(state.selectedSponsorBlockItem).isNull()
+    }
+
+    @Test
+    fun `selectSponsorBlockItem sets and clears sub-item`() {
+        viewModel.selectSponsorBlockItem(VideoPlayerSponsorBlockMenuItem.Categories)
+        assertThat(viewModel.menuState.value.selectedSponsorBlockItem)
+            .isEqualTo(VideoPlayerSponsorBlockMenuItem.Categories)
+
+        viewModel.selectSponsorBlockItem(null)
+        assertThat(viewModel.menuState.value.selectedSponsorBlockItem).isNull()
+    }
+
+    @Test
+    fun `sponsor block nav item is present with display name and icon`() {
+        val item = VideoPlayerMenuNavItem.SponsorBlock
+        assertThat(VideoPlayerMenuNavItem.entries).contains(item)
+        assertThat(item.displayName).isEqualTo("跳过广告")
+    }
+
+    @Test
+    fun `sponsor block menu exposes switch categories undo and reload`() {
+        assertThat(VideoPlayerSponsorBlockMenuItem.entries)
+            .containsExactly(
+                VideoPlayerSponsorBlockMenuItem.Switch,
+                VideoPlayerSponsorBlockMenuItem.Categories,
+                VideoPlayerSponsorBlockMenuItem.Undo,
+                VideoPlayerSponsorBlockMenuItem.Reload,
+            ).inOrder()
     }
 
     @Test

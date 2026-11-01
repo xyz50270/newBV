@@ -1,6 +1,7 @@
 package dev.frost819.newbv.app.viewmodel.player
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.ClearAll
 import androidx.compose.material.icons.outlined.ClosedCaption
 import androidx.compose.material.icons.outlined.Image
@@ -34,6 +35,7 @@ class PlayerMenuViewModel
                     selectedPictureItem = null,
                     selectedDanmakuItem = null,
                     selectedClosedCaptionItem = null,
+                    selectedSponsorBlockItem = null,
                 )
             }
         }
@@ -53,6 +55,11 @@ class PlayerMenuViewModel
             _menuState.update { it.copy(selectedClosedCaptionItem = item) }
         }
 
+        /** 选中广告跳过设置中的子项。 */
+        fun selectSponsorBlockItem(item: VideoPlayerSponsorBlockMenuItem?) {
+            _menuState.update { it.copy(selectedSponsorBlockItem = item) }
+        }
+
         /** 关闭所有子项选择。 */
         fun clearSelection() {
             _menuState.update {
@@ -60,6 +67,7 @@ class PlayerMenuViewModel
                     selectedPictureItem = null,
                     selectedDanmakuItem = null,
                     selectedClosedCaptionItem = null,
+                    selectedSponsorBlockItem = null,
                 )
             }
         }
@@ -73,6 +81,7 @@ data class PlayerMenuState(
     val selectedPictureItem: VideoPlayerPictureMenuItem? = null,
     val selectedDanmakuItem: VideoPlayerDanmakuMenuItem? = null,
     val selectedClosedCaptionItem: VideoPlayerClosedCaptionMenuItem? = null,
+    val selectedSponsorBlockItem: VideoPlayerSponsorBlockMenuItem? = null,
 )
 
 /** 设置菜单导航 Tab。 */
@@ -84,6 +93,17 @@ enum class VideoPlayerMenuNavItem(
     Picture("画质", Icons.Outlined.Image),
     Danmaku("弹幕", Icons.Outlined.ClearAll),
     ClosedCaption("字幕", Icons.Outlined.ClosedCaption),
+    SponsorBlock("跳过广告", Icons.Outlined.Block),
+}
+
+/** 广告片段跳过设置子项。 */
+enum class VideoPlayerSponsorBlockMenuItem(
+    val displayName: String,
+) {
+    Switch("开关"),
+    Categories("片段类型"),
+    Undo("撤销跳过"),
+    Reload("重新加载"),
 }
 
 /** 画质设置子项。 */

@@ -45,6 +45,13 @@ object PlayerCustomShortcutCatalog {
                     PlayerCustomShortcutAction.TogglePersistentBottomProgress,
                 ),
             )
+            add(
+                simple(
+                    "toggle_sponsor_block",
+                    "开关自动跳过广告片段",
+                    PlayerCustomShortcutAction.ToggleSponsorBlock,
+                ),
+            )
 
             // 参数化动作
             add(

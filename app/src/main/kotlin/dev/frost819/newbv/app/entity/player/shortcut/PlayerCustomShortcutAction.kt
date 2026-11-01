@@ -34,6 +34,9 @@ sealed interface PlayerCustomShortcutAction {
 
     data object TogglePersistentBottomProgress : PlayerCustomShortcutAction
 
+    /** 广告/推广片段自动跳过开关。 */
+    data object ToggleSponsorBlock : PlayerCustomShortcutAction
+
     data class TogglePlaybackSpeed(
         val speed: Float,
     ) : PlayerCustomShortcutAction

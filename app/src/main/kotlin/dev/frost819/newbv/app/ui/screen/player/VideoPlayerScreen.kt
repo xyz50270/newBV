@@ -27,6 +27,7 @@ import dev.frost819.newbv.app.ui.component.comment.CommentDialogMode
 import dev.frost819.newbv.app.ui.component.comment.CommentsDialog
 import dev.frost819.newbv.app.ui.component.player.VideoInteractionDialog
 import dev.frost819.newbv.app.ui.component.player.VideoPlayerController
+import dev.frost819.newbv.app.ui.component.player.sponsorSeekMarkers
 import dev.frost819.newbv.app.ui.component.rememberDoublePressExit
 import dev.frost819.newbv.app.ui.component.videocard.VideoCardData
 import dev.frost819.newbv.app.ui.component.videocard.isPgc
@@ -39,6 +40,7 @@ import dev.frost819.newbv.app.util.VideoShotImageCache
 import dev.frost819.newbv.app.viewmodel.comment.CommentViewModel
 import dev.frost819.newbv.app.viewmodel.player.DanmakuViewModel
 import dev.frost819.newbv.app.viewmodel.player.PlayerViewModel
+import dev.frost819.newbv.app.viewmodel.player.SponsorBlockViewModel
 import dev.frost819.newbv.app.viewmodel.player.SubtitleViewModel
 import dev.frost819.newbv.app.viewmodel.player.VideoListViewModel
 import dev.frost819.newbv.biliapi.entity.danmaku.DanmakuMaskFrame
@@ -47,6 +49,7 @@ import dev.frost819.newbv.danmaku.component.DanmakuPlayerCompose
 import dev.frost819.newbv.danmaku.util.DanmakuMaskFinder
 import dev.frost819.newbv.danmaku.util.calculateMaskDelay
 import dev.frost819.newbv.danmaku.util.danmakuMask
+import dev.frost819.newbv.data.datastore.Prefs
 import dev.frost819.newbv.player.BvVideoPlayer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.map
@@ -67,6 +70,7 @@ fun VideoPlayerScreen(
     subtitleViewModel: SubtitleViewModel = hiltViewModel(),
     videoListViewModel: VideoListViewModel = hiltViewModel(),
     commentViewModel: CommentViewModel = hiltViewModel(),
+    sponsorBlockViewModel: SponsorBlockViewModel = hiltViewModel(),
 ) {
     val logger = Loggers.get("VideoPlayerScreen")
     val context = LocalContext.current
@@ -85,6 +89,7 @@ fun VideoPlayerScreen(
     val subtitleData by subtitleViewModel.subtitleData.collectAsState()
     val subtitleList by subtitleViewModel.subtitleList.collectAsState()
     val sharedState by playerViewModel.videoSharedState.collectAsState()
+    val sponsorBlockState by sponsorBlockViewModel.state.collectAsState()
 
     val maskFinder = remember { DanmakuMaskFinder() }
     var currentDanmakuMaskFrame by remember { mutableStateOf<DanmakuMaskFrame?>(null) }
@@ -163,7 +168,37 @@ fun VideoPlayerScreen(
     LaunchedEffect(Unit) {
         playerViewModel.seekerState
             .map { it.currentTime }
-            .collect { danmakuViewModel.onVideoPositionChanged(it) }
+            .collect { positionMs ->
+                danmakuViewModel.onVideoPositionChanged(positionMs)
+                sponsorBlockViewModel.onVideoPositionChanged(positionMs)
+            }
+    }
+
+    // 广告片段：aid/cid 就绪或切集后按最新配置加载（内部按组合去重，重入空操作）
+    LaunchedEffect(uiState.aid, uiState.cid, uiState.isPgc) {
+        sponsorBlockViewModel.loadFor(aid = uiState.aid, cid = uiState.cid, isPgc = uiState.isPgc)
+    }
+
+    // 命中待跳过片段：执行 seek（弹幕引擎时钟由进度喂入自动对齐）
+    LaunchedEffect(Unit) {
+        sponsorBlockViewModel.skipEvent.collect { event ->
+            // 播放页被覆盖期间事件会被缓冲，返回时应丢弃已不属于当前视频的过期事件
+            if (event.aid != uiState.aid || event.cid != uiState.cid) return@collect
+            logger.info {
+                "[PLAYBACK] sponsorSkip aid=${uiState.aid}, cid=${uiState.cid}, " +
+                    "category=${event.segment.category}, targetMs=${event.segment.endMs}"
+            }
+            playerViewModel.seekToTime(event.segment.endMs)
+        }
+    }
+
+    // 撤销跳过：跳回片段起点（该片段已记为跳过，因此不会被立即再次跳过）
+    LaunchedEffect(Unit) {
+        sponsorBlockViewModel.undoEvent.collect { event ->
+            if (event.aid != uiState.aid || event.cid != uiState.cid) return@collect
+            logger.info { "[PLAYBACK] sponsorUndo aid=${event.aid}, cid=${event.cid}, targetMs=${event.positionMs}" }
+            playerViewModel.seekToTime(event.positionMs)
+        }
     }
 
     // 弹幕运行同步：视频播放中且未缓冲时弹幕运行，其余情况（暂停/出错/结束/缓冲）暂停
@@ -228,6 +263,8 @@ fun VideoPlayerScreen(
                             playerViewModel.togglePlayPause()
                         }
                     }
+                    // 从设置页/后台返回时 SponsorBlock 配置可能已变，按最新值刷新（未变则空操作）
+                    Lifecycle.Event.ON_RESUME -> sponsorBlockViewModel.refresh()
                     else -> {}
                 }
             }
@@ -334,6 +371,33 @@ fun VideoPlayerScreen(
         },
         onToggleDanmaku = { danmakuViewModel.toggleDanmaku() },
         onShowShortcutTip = { text -> playerViewModel.showShortcutTip(text) },
+        onToggleSponsorBlock = {
+            Prefs.sponsorBlockEnabled = !Prefs.sponsorBlockEnabled
+            sponsorBlockViewModel.refresh()
+        },
+        sponsorSkipTipText = sponsorBlockState.tipText,
+        sponsorBlockEnabled = sponsorBlockState.enabled,
+        sponsorBlockCategories = sponsorBlockState.categories,
+        onSponsorBlockCategoriesChange = { categories ->
+            Prefs.sponsorBlockCategories = categories.sortedBy { it.ordinal }
+            sponsorBlockViewModel.refresh()
+        },
+        onSponsorBlockReload = { sponsorBlockViewModel.reload() },
+        sponsorBlockCanUndo = sponsorBlockState.lastSkipped != null,
+        onSponsorBlockUndo = { sponsorBlockViewModel.undoLastSkip() },
+        // 区段标识随片段数据/分类/时长变化重算，避免每帧推导
+        seekMarkers =
+            remember(
+                sponsorBlockState.segments,
+                sponsorBlockState.categories,
+                seekerState.value.totalDuration,
+            ) {
+                sponsorSeekMarkers(
+                    segments = sponsorBlockState.segments,
+                    enabledCategories = sponsorBlockState.categories,
+                    durationMs = seekerState.value.totalDuration,
+                )
+            },
     ) {
         Box(
             modifier = Modifier.fillMaxSize(),

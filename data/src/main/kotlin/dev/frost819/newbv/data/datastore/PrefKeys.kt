@@ -69,6 +69,10 @@ internal object PrefKeys {
     val showPersistentSeek = booleanPreferencesKey("show_persistent_seek")
     val showPlayerDebugInfo = booleanPreferencesKey("show_player_debug_info")
 
+    // ===== 播放器 - 广告跳过（SponsorBlock） =====
+    val sponsorBlockEnabled = booleanPreferencesKey("sponsor_block_enabled")
+    val sponsorBlockCategories = stringPreferencesKey("sponsor_block_categories")
+
     // ===== 应用界面 =====
     val density = floatPreferencesKey("density")
     val homeLeftNavItem = intPreferencesKey("home_left_nav")

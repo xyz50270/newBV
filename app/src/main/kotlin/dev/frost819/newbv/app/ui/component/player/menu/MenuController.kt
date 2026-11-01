@@ -41,6 +41,7 @@ import dev.frost819.newbv.biliapi.entity.video.SubtitleType
 import dev.frost819.newbv.data.datastore.Audio
 import dev.frost819.newbv.data.datastore.DanmakuType
 import dev.frost819.newbv.data.datastore.VideoCodec
+import dev.frost819.newbv.sponsorblock.entity.SponsorCategory
 
 /**
  * 设置菜单控制器。
@@ -88,6 +89,13 @@ fun MenuController(
     onSubtitleSizeChange: (Int) -> Unit,
     onSubtitleBackgroundOpacityChange: (Float) -> Unit,
     onSubtitleBottomPadding: (Int) -> Unit,
+    sponsorBlockEnabled: Boolean = false,
+    sponsorBlockCategories: Set<SponsorCategory> = emptySet(),
+    onSponsorBlockToggle: () -> Unit = {},
+    onSponsorBlockCategoriesChange: (Set<SponsorCategory>) -> Unit = {},
+    onSponsorBlockReload: () -> Unit = {},
+    sponsorBlockCanUndo: Boolean = false,
+    onSponsorBlockUndo: () -> Unit = {},
 ) {
     val focusRequester = remember { FocusRequester() }
 
@@ -127,6 +135,13 @@ fun MenuController(
                 onSubtitleSizeChange = onSubtitleSizeChange,
                 onSubtitleBackgroundOpacityChange = onSubtitleBackgroundOpacityChange,
                 onSubtitleBottomPadding = onSubtitleBottomPadding,
+                sponsorBlockEnabled = sponsorBlockEnabled,
+                sponsorBlockCategories = sponsorBlockCategories,
+                onSponsorBlockToggle = onSponsorBlockToggle,
+                onSponsorBlockCategoriesChange = onSponsorBlockCategoriesChange,
+                onSponsorBlockReload = onSponsorBlockReload,
+                sponsorBlockCanUndo = sponsorBlockCanUndo,
+                onSponsorBlockUndo = onSponsorBlockUndo,
             )
         }
     }
@@ -154,6 +169,13 @@ private fun MenuControllerContent(
     onSubtitleSizeChange: (Int) -> Unit,
     onSubtitleBackgroundOpacityChange: (Float) -> Unit,
     onSubtitleBottomPadding: (Int) -> Unit,
+    sponsorBlockEnabled: Boolean,
+    sponsorBlockCategories: Set<SponsorCategory>,
+    onSponsorBlockToggle: () -> Unit,
+    onSponsorBlockCategoriesChange: (Set<SponsorCategory>) -> Unit,
+    onSponsorBlockReload: () -> Unit,
+    sponsorBlockCanUndo: Boolean,
+    onSponsorBlockUndo: () -> Unit,
 ) {
     var selectedNavItem by remember { mutableStateOf(VideoPlayerMenuNavItem.PlaySpeed) }
     var focusState by remember { mutableStateOf(MenuFocusState.MenuNav) }
@@ -191,6 +213,13 @@ private fun MenuControllerContent(
                     onSubtitleSizeChange = onSubtitleSizeChange,
                     onSubtitleBackgroundOpacityChange = onSubtitleBackgroundOpacityChange,
                     onSubtitleBottomPadding = onSubtitleBottomPadding,
+                    sponsorBlockEnabled = sponsorBlockEnabled,
+                    sponsorBlockCategories = sponsorBlockCategories,
+                    onSponsorBlockToggle = onSponsorBlockToggle,
+                    onSponsorBlockCategoriesChange = onSponsorBlockCategoriesChange,
+                    onSponsorBlockReload = onSponsorBlockReload,
+                    sponsorBlockCanUndo = sponsorBlockCanUndo,
+                    onSponsorBlockUndo = onSponsorBlockUndo,
                 )
                 MenuNavList(
                     modifier =
@@ -240,6 +269,13 @@ private fun MenuList(
     onSubtitleSizeChange: (Int) -> Unit,
     onSubtitleBackgroundOpacityChange: (Float) -> Unit,
     onSubtitleBottomPadding: (Int) -> Unit,
+    sponsorBlockEnabled: Boolean,
+    sponsorBlockCategories: Set<SponsorCategory>,
+    onSponsorBlockToggle: () -> Unit,
+    onSponsorBlockCategoriesChange: (Set<SponsorCategory>) -> Unit,
+    onSponsorBlockReload: () -> Unit,
+    sponsorBlockCanUndo: Boolean,
+    onSponsorBlockUndo: () -> Unit,
 ) {
     Box(contentAlignment = Alignment.Center) {
         when (selectedNavMenu) {
@@ -320,6 +356,18 @@ private fun MenuList(
                     onFocusStateChange = onFocusStateChange,
                 )
             }
+
+            VideoPlayerMenuNavItem.SponsorBlock ->
+                SponsorBlockMenuList(
+                    enabled = sponsorBlockEnabled,
+                    enabledCategories = sponsorBlockCategories,
+                    onToggleEnabled = onSponsorBlockToggle,
+                    onCategoriesChange = onSponsorBlockCategoriesChange,
+                    onReload = onSponsorBlockReload,
+                    canUndo = sponsorBlockCanUndo,
+                    onUndo = onSponsorBlockUndo,
+                    onFocusStateChange = onFocusStateChange,
+                )
         }
     }
 }

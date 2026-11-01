@@ -41,6 +41,7 @@ import dev.frost819.newbv.app.ui.screen.settings.content.AboutSetting
 import dev.frost819.newbv.app.ui.screen.settings.content.AudioVideoSetting
 import dev.frost819.newbv.app.ui.screen.settings.content.InfoSetting
 import dev.frost819.newbv.app.ui.screen.settings.content.OtherSetting
+import dev.frost819.newbv.app.ui.screen.settings.content.SponsorBlockSetting
 import dev.frost819.newbv.app.ui.screen.settings.content.StorageSetting
 import dev.frost819.newbv.app.ui.screen.settings.content.UISetting
 import dev.frost819.newbv.core.focus.touchClickable
@@ -202,6 +203,7 @@ private fun SettingContent(
                         onNavigateToLogViewer = onNavigateToLogViewer,
                         screenFocusSaver = screenFocusSaver,
                     )
+                SettingsMenuNavItem.SponsorBlock -> SponsorBlockSetting()
                 SettingsMenuNavItem.Storage -> StorageSetting()
                 SettingsMenuNavItem.Info ->
                     InfoSetting(
@@ -275,6 +277,7 @@ enum class SettingsMenuNavItem(
     val displayName: String,
 ) {
     AudioVideo("播放设置"),
+    SponsorBlock("跳过广告"),
     UI("界面设置"),
     Other("更多设置"),
     Storage("存储管理"),

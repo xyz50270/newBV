@@ -102,6 +102,15 @@ fun VideoPlayerController(
     onRelatedVideoClicked: (dev.frost819.newbv.app.ui.component.videocard.VideoCardData) -> Unit,
     onToggleDanmaku: () -> Unit,
     onShowShortcutTip: (String) -> Unit,
+    onToggleSponsorBlock: () -> Unit = {},
+    sponsorSkipTipText: String? = null,
+    sponsorBlockEnabled: Boolean = false,
+    sponsorBlockCategories: Set<dev.frost819.newbv.sponsorblock.entity.SponsorCategory> = emptySet(),
+    onSponsorBlockCategoriesChange: (Set<dev.frost819.newbv.sponsorblock.entity.SponsorCategory>) -> Unit = {},
+    onSponsorBlockReload: () -> Unit = {},
+    sponsorBlockCanUndo: Boolean = false,
+    onSponsorBlockUndo: () -> Unit = {},
+    seekMarkers: List<SeekMarker> = emptyList(),
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
@@ -267,6 +276,11 @@ fun VideoPlayerController(
                 showPersistentSeek = !showPersistentSeek
                 Prefs.showPersistentSeek = showPersistentSeek
                 status = if (showPersistentSeek) "开" else "关"
+            }
+
+            PlayerCustomShortcutAction.ToggleSponsorBlock -> {
+                status = if (!Prefs.sponsorBlockEnabled) "开" else "关"
+                onToggleSponsorBlock()
             }
 
             is PlayerCustomShortcutAction.TogglePlaybackSpeed -> {
@@ -495,6 +509,7 @@ fun VideoPlayerController(
                     position = seekerState.value.currentTime,
                     bufferedPercentage = seekerState.value.bufferedPercentage,
                     isPersistentSeek = true,
+                    markers = seekMarkers,
                 )
             }
 
@@ -521,6 +536,7 @@ fun VideoPlayerController(
                 showSkipToNextEp = uiState.showSkipToNextEp,
                 showPreviewTip = uiState.showPreviewTip,
                 shortcutTipText = uiState.shortcutTipText,
+                sponsorSkipTipText = sponsorSkipTipText,
             )
 
             // 播放状态提示
@@ -576,6 +592,7 @@ fun VideoPlayerController(
                 onGoToUpPage = onGoToUpPage,
                 onShowInteraction = onShowInteraction,
                 onShowComments = onShowComments,
+                seekMarkers = seekMarkers,
             )
 
             // 分集列表
@@ -614,6 +631,13 @@ fun VideoPlayerController(
                 onSubtitleSizeChange = { onSubtitleSettingChange(SubtitleSettingAction.SetFontSize(it)) },
                 onSubtitleBackgroundOpacityChange = { onSubtitleSettingChange(SubtitleSettingAction.SetOpacity(it)) },
                 onSubtitleBottomPadding = { onSubtitleSettingChange(SubtitleSettingAction.SetBottomPadding(it)) },
+                sponsorBlockEnabled = sponsorBlockEnabled,
+                sponsorBlockCategories = sponsorBlockCategories,
+                onSponsorBlockToggle = onToggleSponsorBlock,
+                onSponsorBlockCategoriesChange = onSponsorBlockCategoriesChange,
+                onSponsorBlockReload = onSponsorBlockReload,
+                sponsorBlockCanUndo = sponsorBlockCanUndo,
+                onSponsorBlockUndo = onSponsorBlockUndo,
             )
         }
     }

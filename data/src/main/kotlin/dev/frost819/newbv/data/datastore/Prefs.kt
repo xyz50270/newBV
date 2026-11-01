@@ -5,6 +5,7 @@ package dev.frost819.newbv.data.datastore
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import dev.frost819.newbv.sponsorblock.entity.SponsorCategory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -353,6 +354,34 @@ object Prefs {
 
     /** 显示播放器调试信息。 */
     var showPlayerDebugInfo by pref(PrefKeys.showPlayerDebugInfo, false)
+
+    // --- 播放器 - 广告跳过（SponsorBlock） ---
+
+    /**
+     * 是否启用 SponsorBlock 自动跳过（默认关闭）。
+     *
+     * 数据来源为社区标注服务 <https://bsbsb.top>，需要联网查询片段列表。
+     */
+    var sponsorBlockEnabled by pref(PrefKeys.sponsorBlockEnabled, false)
+
+    /**
+     * 启用自动跳过的片段分类（默认只跳过赞助推广）。
+     *
+     * 以逗号分隔的 [SponsorCategory.apiName] 持久化：分类枚举顺序可能调整，
+     * 用稳定字符串而非 ordinal，避免升级后语义漂移。
+     */
+    var sponsorBlockCategories by pref(
+        PrefKeys.sponsorBlockCategories,
+        listOf(SponsorCategory.Sponsor),
+        save = { list -> list.joinToString(",") { it.apiName } },
+        // 空字符串表示用户显式取消全部类型（不跳过任何片段），与「从未设置」区分开：
+        // 从未设置时 DataStore 无该键，取默认值 [SponsorCategory.Sponsor]
+        restore = { str ->
+            str
+                .split(",")
+                .mapNotNull { SponsorCategory.fromApiName(it) }
+        },
+    )
 
     // --- 应用界面（PRD 7.2） ---
 

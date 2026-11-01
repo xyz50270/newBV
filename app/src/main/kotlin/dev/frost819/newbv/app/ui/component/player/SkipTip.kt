@@ -43,6 +43,7 @@ import dev.frost819.newbv.core.theme.BVTheme
  * - **跳下集提示**：播放结束，即将播放下一集
  * - **回到开头提示**：从上次播放位置继续，按确认键从头播放
  * - **快捷键提示**：显示最近一次触发的快捷键或分集边界提示
+ * - **自动跳过提示**：赞助/推广片段被自动跳过时显示
  *
  * 每个提示通过 [PlayerTip] 独立做进出场动画，Column 自动堆叠。
  *
@@ -51,6 +52,7 @@ import dev.frost819.newbv.core.theme.BVTheme
  * @param showSkipToNextEp 是否显示"跳下集"提示
  * @param showPreviewTip 是否显示"试看"提示
  * @param shortcutTipText 最近一次快捷键提示文本，为 null 时不显示
+ * @param sponsorSkipTipText 广告片段自动跳过提示文本，为 null 时不显示
  */
 @Composable
 fun SkipTips(
@@ -59,6 +61,7 @@ fun SkipTips(
     showSkipToNextEp: Boolean,
     showPreviewTip: Boolean,
     shortcutTipText: String? = null,
+    sponsorSkipTipText: String? = null,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
         Column(
@@ -82,6 +85,11 @@ fun SkipTips(
                 show = showBackToStart,
                 text = "从上次播放位置继续，按确认键从头播放",
                 icon = Icons.Outlined.Replay,
+            )
+            PlayerTip(
+                show = sponsorSkipTipText != null,
+                text = sponsorSkipTipText.orEmpty(),
+                icon = Icons.Outlined.SkipNext,
             )
             PlayerTip(
                 show = shortcutTipText != null,

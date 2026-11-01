@@ -6,6 +6,7 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -46,6 +48,7 @@ import dev.frost819.newbv.core.focus.touchClickable
  * @param textAlign 文本对齐方式
  * @param onFocus 获得焦点回调
  * @param onClick 点击回调
+ * @param swatchColor 文本左侧色块颜色（展开时显示）；null 时不显示
  */
 @Composable
 fun MenuListItem(
@@ -57,6 +60,7 @@ fun MenuListItem(
     textAlign: TextAlign = TextAlign.Center,
     onFocus: () -> Unit = {},
     onClick: () -> Unit,
+    swatchColor: Color? = null,
 ) {
     val itemWidth by animateDpAsState(
         targetValue = if (expanded) 200.dp else 66.dp,
@@ -97,10 +101,19 @@ fun MenuListItem(
                     exit = fadeOut(),
                     label = "MenuListItem text [$text]",
                 ) {
+                    if (swatchColor != null) {
+                        Box(
+                            modifier =
+                                Modifier
+                                    .padding(end = 6.dp)
+                                    .size(10.dp)
+                                    .background(color = swatchColor, shape = CircleShape),
+                        )
+                    }
                     Text(
                         modifier =
                             Modifier
-                                .fillMaxWidth()
+                                .weight(1f)
                                 .height(32.dp)
                                 .wrapContentHeight(Alignment.CenterVertically),
                         text = text,

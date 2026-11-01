@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import dev.frost819.newbv.app.entity.player.displayName
 import dev.frost819.newbv.app.entity.player.shortcut.PlayerCustomShortcutsStore
 import dev.frost819.newbv.app.ui.component.settings.OptionDialog
 import dev.frost819.newbv.app.ui.component.settings.SettingListItem
@@ -34,7 +35,7 @@ import dev.frost819.newbv.data.datastore.VideoCodec
 /**
  * 音视频设置页。
  *
- * 画质/编码/音轨/倍速/播放结束动作/快捷键/软解。
+ * 画质/编码/音轨/倍速/播放结束动作/快捷键/软解/CDN 选择。
  */
 @Composable
 fun AudioVideoSetting(modifier: Modifier = Modifier) {
