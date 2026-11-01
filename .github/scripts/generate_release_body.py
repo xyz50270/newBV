@@ -8,7 +8,7 @@ Full Changelog 链接作为 Release 正文；摘要文件缺失时降级为仅�
 用法（CI 中由 release.yml 调用）：
 
     GITHUB_REF_NAME=v1.1.0 \
-    GITHUB_REPOSITORY=Frost819/newBV \
+    GITHUB_REPOSITORY=xyz50270/newBV \
     python3 .github/scripts/generate_release_body.py release_body.md
 
 说明：仓库提交多为直接 push（无 PR），GitHub 的 generate_release_notes

@@ -8,7 +8,7 @@
 
 [![Android Sdk Require](https://img.shields.io/badge/Android-5.0%2B-informational?logo=android)](https://apilevels.com/#:~:text=Jetpack%20Compose%20requires%20a%20minSdk%20of%2021%20or%20higher)
 [![License](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
-[![Release](https://img.shields.io/github/v/release/Frost819/newBV?label=release&logo=github)](../../releases)
+[![Release](https://img.shields.io/github/v/release/xyz50270/newBV?label=release&logo=github)](https://github.com/xyz50270/newBV/releases)
 
 **newBV 不支持在中国大陆地区内使用，如有相关使用需求请使用 [云视听小电视](https://app.bilibili.com)**
 

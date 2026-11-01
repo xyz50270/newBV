@@ -56,6 +56,9 @@ android {
             "CRASH_REPORT_TOKEN",
             "\"${localProperties.getProperty("crashReport.token", "")}\"",
         )
+        // 检查更新/发布所用的 GitHub 仓库，单一配置源见 AppConfiguration
+        buildConfigField("String", "RELEASE_REPO_OWNER", "\"${AppConfiguration.releaseRepoOwner}\"")
+        buildConfigField("String", "RELEASE_REPO_NAME", "\"${AppConfiguration.releaseRepoName}\"")
     }
 
     buildTypes {

@@ -13,7 +13,9 @@ jobs:
   build-release:
     name: Build & Publish Release
     runs-on: ubuntu-latest
-    if: github.repository == 'Frost819/newBV'
+    # 发布守卫：仅允许实际发布仓库打 tag 时构建并上传 Release。
+    # 上游仓库若存在同名 tag（fork 关系）不会触发发版，避免把包推到错误仓库。
+    if: github.repository == 'xyz50270/newBV'
 
     steps:
       - name: Checkout
@@ -82,10 +84,15 @@ jobs:
           echo "versionName=$(jq -r '.elements[0].versionName' "$META")" >> "$GITHUB_ENV"
 
       # WORKER_ADMIN_TOKEN 为 Worker 管理端 ADMIN_TOKEN；APK 内使用的是 CRASH_REPORT_TOKEN
+      # 未配置时跳过：fork 场景通常没有管理端凭据，不应因此阻断发版
       - name: Upload mapping to crash backend
         env:
           WORKER_ADMIN_TOKEN: ${{ secrets.WORKER_ADMIN_TOKEN }}
         run: |
+          if [ -z "$WORKER_ADMIN_TOKEN" ]; then
+            echo "::warning::未配置 WORKER_ADMIN_TOKEN，跳过 mapping 上传（崩溃堆栈将无法还原）"
+            exit 0
+          fi
           MAPPING=app/build/outputs/mapping/release/mapping.txt
           SIZE=$(stat -c%s "$MAPPING")
           gzip -9 -c "$MAPPING" > mapping.txt.gz

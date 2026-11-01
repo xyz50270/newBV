@@ -20,6 +20,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import dev.frost819.newbv.BuildConfig
 import dev.frost819.newbv.app.network.GithubApi
+import dev.frost819.newbv.app.network.NoReleasePublishedException
 import dev.frost819.newbv.app.ui.component.settings.UpdateDialog
 import dev.frost819.newbv.app.ui.screen.settings.SettingsMenuNavItem
 import dev.frost819.newbv.core.focus.touchClickable
@@ -44,9 +45,11 @@ fun AboutSetting(modifier: Modifier = Modifier) {
             runCatching {
                 latestVersionName = GithubApi.getLatestBuild().versionLabel
                 logger.info { "Find latest version $latestVersionName" }
-            }.onFailure {
-                logger.error(it) { "Failed to get latest version" }
-                latestVersionName = "Error"
+            }.onFailure { error ->
+                logger.error(error) { "Failed to get latest version" }
+                // 新仓库尚未发版时与网络故障区分开，否则用户会以为是自己网络的问题
+                latestVersionName =
+                    if (error is NoReleasePublishedException) "暂无发布版本" else "获取失败"
             }
         }
     }
@@ -77,7 +80,7 @@ fun AboutSetting(modifier: Modifier = Modifier) {
         }
         Text(
             modifier = Modifier.align(Alignment.BottomCenter),
-            text = "https://github.com/Frost819/newBV",
+            text = GithubApi.REPO_HTML_URL,
         )
     }
 

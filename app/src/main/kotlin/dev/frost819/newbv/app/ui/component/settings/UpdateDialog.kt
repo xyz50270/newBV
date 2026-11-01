@@ -31,6 +31,7 @@ import androidx.tv.material3.OutlinedButton
 import androidx.tv.material3.Text
 import dev.frost819.newbv.BuildConfig
 import dev.frost819.newbv.app.network.GithubApi
+import dev.frost819.newbv.app.network.NoReleasePublishedException
 import dev.frost819.newbv.app.network.entity.GithubRelease
 import dev.frost819.newbv.app.util.CacheManager
 import dev.frost819.newbv.core.focus.touchClickable
@@ -99,9 +100,14 @@ fun UpdateDialog(
                     updateStatus = UpdateStatus.NoAvailableUpdate
                     return@launch
                 }
-            }.onFailure {
-                logger.error(it) { "Failed to get latest version" }
-                updateStatus = UpdateStatus.CheckError
+            }.onFailure { error ->
+                logger.error(error) { "Failed to get latest version" }
+                updateStatus =
+                    if (error is NoReleasePublishedException) {
+                        UpdateStatus.NoReleasePublished
+                    } else {
+                        UpdateStatus.CheckError
+                    }
             }.onSuccess {
                 logger.info { "Find latest version ${latestRelease!!.name}" }
                 updateStatus = UpdateStatus.Ready
@@ -206,6 +212,7 @@ fun UpdateDialog(
                             UpdateStatus.Downloading -> "下载中"
                             UpdateStatus.Installing -> "安装中"
                             UpdateStatus.NoAvailableUpdate -> "无可用更新"
+                            UpdateStatus.NoReleasePublished -> "暂无发布版本"
                             UpdateStatus.CheckError -> "检查更新失败"
                             UpdateStatus.DownloadError -> "下载失败"
                             UpdateStatus.InstallError -> "安装失败"
@@ -260,6 +267,10 @@ fun UpdateDialog(
                         )
                     }
 
+                    UpdateStatus.NoReleasePublished -> {
+                        Text(text = "发布仓库尚未发布任何版本。若你是自行构建使用，无需更新。")
+                    }
+
                     UpdateStatus.CheckError -> {
                         Text(text = "获取更新信息失败")
                     }
@@ -272,6 +283,7 @@ fun UpdateDialog(
             confirmButton = {
                 when (updateStatus) {
                     UpdateStatus.UpdatingInfo, UpdateStatus.NoAvailableUpdate,
+                    UpdateStatus.NoReleasePublished,
                     UpdateStatus.Downloading, UpdateStatus.Installing,
                     -> {}
 
@@ -330,6 +342,7 @@ fun UpdateDialog(
                                 UpdateStatus.UpdatingInfo -> "我点错了"
                                 UpdateStatus.Ready -> "打死不更"
                                 UpdateStatus.NoAvailableUpdate -> "走了走了"
+                                UpdateStatus.NoReleasePublished -> "知道了"
                                 UpdateStatus.CheckError, UpdateStatus.DownloadError,
                                 UpdateStatus.InstallError, UpdateStatus.InstallPermissionRequired,
                                 -> "算了算了"
@@ -350,6 +363,9 @@ enum class UpdateStatus {
     Downloading,
     Installing,
     NoAvailableUpdate,
+
+    /** 发布仓库尚未发布任何 Release（新建/迁移仓库首次发版前）。 */
+    NoReleasePublished,
     CheckError,
     DownloadError,
     InstallError,

@@ -1855,3 +1855,28 @@ TV 端用户不会为了一个开关退出播放器，只在设置页提供入�
 `SponsorBlockRepositoryTest` 用 `runBlocking` 而非 `runTest`：`runTest` 会在测试
 开始前检查未捕获异常，全量运行 `:app:testDebugUnitTest` 时会受其它测试类
 （Robolectric DataStore 文件冲突）泄漏的异常牵连而误报失败。
+
+### 11.16 更新检查与发版仓库
+
+更新检查的仓库地址有**唯一配置源**：`buildSrc/src/main/kotlin/AppConfiguration.kt` 的
+`releaseRepoOwner` / `releaseRepoName`。`app/build.gradle.kts` 把它们注入为
+`BuildConfig.RELEASE_REPO_OWNER` / `RELEASE_REPO_NAME`，`GithubApi` 只读这两个常量。
+更换仓库时**不要**去改 `GithubApi` 里的字符串，也不要在 UI 里拼 URL——用
+`GithubApi.REPO_HTML_URL`。
+
+#### 11.16.1 「无 Release」不等于「检查失败」
+
+迁移到新仓库（fork）后，仓库存在但尚未发过版，GitHub `releases/latest` 返回 **404**。
+这个 404 与「仓库不存在」「限流」在网络层是一样的，必须靠响应体区分：
+GitHub 的错误体是 `{"message":"Not Found","status":"404"}`，所以用
+`GithubApi.isNotFound()` 解析 JSON 的 `status` 字段判断，而不是看 HTTP 状态码。
+
+区分后可给出准确提示：`NoReleasePublishedException` →「暂无发布版本」，
+其它异常 →「获取失败」。否则新仓库首次发版前，所有用户都会看到「检查更新失败」，
+误以为是网络问题。
+
+#### 11.16.2 CI 发版守卫必须跟着改
+
+`.github/workflows/release.yml` 的 job 有 `if: github.repository == 'xyz50270/newBV'`。
+fork 关系下上游仓库打 tag 也会触发下游 workflow，没有这个守卫会把包发到错误仓库。
+换仓库时这一行必须同步改，否则新仓库永远发不出版本（而旧仓库会被误发）。

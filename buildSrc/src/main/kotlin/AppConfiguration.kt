@@ -12,6 +12,17 @@ object AppConfiguration {
     const val targetSdk = 36
 
     /**
+     * 检查更新与发布 Release 所使用的 GitHub 仓库。
+     *
+     * 这里是唯一配置源：app 模块通过 `buildConfigField` 注入到
+     * `BuildConfig.RELEASE_REPO_OWNER` / `RELEASE_REPO_NAME`，
+     * 运行时代码（GithubApi）与关于页展示都读取它，避免多处硬编码不同步。
+     * 迁移仓库时只改这两个常量（以及 `.github/workflows/release.yml` 的发布守卫）。
+     */
+    const val releaseRepoOwner = "xyz50270"
+    const val releaseRepoName = "newBV"
+
+    /**
      * 版本基数（`major.minor.patch`，可带 hotfix 段）。
      *
      * 优先取 CI 注入的 `NEWBV_VERSION_BASE`（由 tag 去掉 `v` 前缀得到），
