@@ -236,4 +236,84 @@ class SponsorBlockApiTest {
             assertThat(requireNotNull(interceptor.capturedRequest).url.queryParameter("categories"))
                 .isEqualTo("[\"sponsor\",\"intro\"]")
         }
+
+    @Test
+    fun `parseSegments accepts real response with fractional videoDuration`() {
+        // 回归：服务端 videoDuration 是小数（1013.525），模型曾声明为 Int，
+        // 导致反序列化抛 JsonDecodingException、整包被吞成空列表，
+        // 表现为「有标注却显示没有可跳过片段」。
+        val (api, _) = apiWith("[]")
+
+        val segments =
+            api.parseSegments(
+                body =
+                    """
+                    [{"cid":"43197532586","category":"sponsor","actionType":"skip","segment":[286.8,409.92],
+                      "UUID":"b703302c1e8ff9184bc538cffca0071278572bd53301ac64e80000919f2626047",
+                      "videoDuration":1013.525,"locked":0,"votes":0,"description":""}]
+                    """.trimIndent(),
+                requestedCid = 43_197_532_586L,
+            )
+
+        assertThat(segments).hasSize(1)
+        assertThat(segments[0].startMs).isEqualTo(286_800L)
+        assertThat(segments[0].endMs).isEqualTo(409_920L)
+        assertThat(segments[0].category).isEqualTo(SponsorCategory.Sponsor)
+        assertThat(segments[0].cid).isEqualTo(43_197_532_586L)
+    }
+
+    @Test
+    fun `parseSegments keeps good entries when one entry has wrong field type`() {
+        // 逐条容错：单条字段类型异常只丢弃该条，不能连带清空同响应里的合法片段
+        val (api, _) = apiWith("[]")
+
+        val segments =
+            api.parseSegments(
+                body =
+                    """
+                    [
+                      {"cid":"1","category":"sponsor","actionType":"skip","segment":[1,2],"UUID":"ok"},
+                      {"cid":"1","category":"sponsor","actionType":"skip","segment":"broken","UUID":"bad"},
+                      {"cid":"1","category":"intro","actionType":"skip","segment":[5,6],"UUID":"ok2"}
+                    ]
+                    """.trimIndent(),
+                requestedCid = 1L,
+            )
+
+        assertThat(segments.map { it.uuid }).containsExactly("ok", "ok2").inOrder()
+    }
+
+    @Test
+    fun `parseSegments reports parse failure through onError`() {
+        val errors = mutableListOf<Throwable>()
+        val client = OkHttpClient.Builder().addInterceptor(CapturingInterceptor("[]")).build()
+        val api = SponsorBlockApi(client, onError = { errors += it })
+
+        val segments = api.parseSegments(body = "<html>not json</html>", requestedCid = 1L)
+
+        assertThat(segments).isEmpty()
+        assertThat(errors).hasSize(1)
+    }
+
+    @Test
+    fun `parseSegments reports per-entry failure without failing the batch`() {
+        val errors = mutableListOf<Throwable>()
+        val client = OkHttpClient.Builder().addInterceptor(CapturingInterceptor("[]")).build()
+        val api = SponsorBlockApi(client, onError = { errors += it })
+
+        val segments =
+            api.parseSegments(
+                body =
+                    """
+                    [
+                      {"category":"sponsor","actionType":"skip","segment":[1,2],"UUID":"ok"},
+                      {"category":"sponsor","actionType":"skip","segment":"broken","UUID":"bad"}
+                    ]
+                    """.trimIndent(),
+                requestedCid = null,
+            )
+
+        assertThat(segments.map { it.uuid }).containsExactly("ok")
+        assertThat(errors).hasSize(1)
+    }
 }

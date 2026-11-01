@@ -5,6 +5,7 @@ import dev.frost819.newbv.sponsorblock.entity.SponsorSegment
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -26,12 +27,14 @@ import java.io.IOException
  * @param baseUrl API 根地址，默认官方服务端
  * @param clientOrigin `origin` 请求头取值，标识调用方来源
  * @param clientVersion `x-ext-version` 请求头取值
+ * @param onError 解析或请求失败的观测回调，用于把「静默返回空列表」变成可诊断日志
  */
 class SponsorBlockApi(
     private val client: OkHttpClient,
     private val baseUrl: String = DEFAULT_BASE_URL,
     private val clientOrigin: String = DEFAULT_ORIGIN,
     private val clientVersion: String = DEFAULT_VERSION,
+    private val onError: (Throwable) -> Unit = {},
 ) {
     companion object {
         /** 官方服务端根地址（末尾带斜杠，拼接路径时不要再补）。 */
@@ -76,6 +79,7 @@ class SponsorBlockApi(
                 .getOrElse { error ->
                     // 网络异常、服务端 5xx、JSON 结构变化都视为「本次无片段」，
                     // 由调用方决定是否重试；不能影响播放本身
+                    onError(error)
                     if (error is IOException) throw error
                     emptyList()
                 }
@@ -119,6 +123,11 @@ class SponsorBlockApi(
     /**
      * 解析服务端响应并转换为业务模型。
      *
+     * **逐条容错**：整体按 JSON 数组遍历，单条记录字段异常时只丢弃该条并上报
+     * [onError]，不影响同一响应里的其它片段。此前一次性反序列化整个数组，
+     * 任何一条字段类型不符（例如 `videoDuration` 是小数而模型声明为 `Int`）
+     * 都会让整包解析失败，最终表现为「明明有标注、App 却显示没有可跳过片段」。
+     *
      * 过滤规则：
      * - 只保留 `actionType == "skip"` 的片段（`mute` / `full` 不在此处理语义内）
      * - 未知分类直接丢弃，避免新增分类污染列表
@@ -131,13 +140,30 @@ class SponsorBlockApi(
     internal fun parseSegments(
         body: String,
         requestedCid: Long?,
-    ): List<SponsorSegment> =
-        runCatching {
-            json
-                .decodeFromString<List<SkipSegmentResponse>>(body)
-                .mapNotNull { it.toSegment(requestedCid) }
-                .sortedBy { it.startMs }
-        }.getOrDefault(emptyList())
+    ): List<SponsorSegment> {
+        val element =
+            runCatching { json.parseToJsonElement(body) }
+                .getOrElse { error ->
+                    onError(error)
+                    return emptyList()
+                }
+        // 响应不是数组（网关错误页、纯文本等）同样要留痕，避免又一次「静默无片段」
+        val array =
+            element as? JsonArray
+                ?: run {
+                    onError(IllegalStateException("响应不是 JSON 数组：${body.take(200)}"))
+                    return emptyList()
+                }
+
+        return array
+            .mapNotNull { entry ->
+                runCatching { json.decodeFromJsonElement(SkipSegmentResponse.serializer(), entry) }
+                    .getOrElse { error ->
+                        onError(error)
+                        return@mapNotNull null
+                    }.toSegment(requestedCid)
+            }.sortedBy { it.startMs }
+    }
 
     private fun SkipSegmentResponse.toSegment(requestedCid: Long?): SponsorSegment? {
         if (actionType != ACTION_SKIP) return null

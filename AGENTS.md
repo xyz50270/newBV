@@ -1856,6 +1856,33 @@ TV 端用户不会为了一个开关退出播放器，只在设置页提供入�
 开始前检查未捕获异常，全量运行 `:app:testDebugUnitTest` 时会受其它测试类
 （Robolectric DataStore 文件冲突）泄漏的异常牵连而误报失败。
 
+#### 11.15.9 解析必须逐条容错，且失败要留痕
+
+**现象**：某视频在网页端确认有 sponsor 标注，App 里却显示「没有可跳过片段」。
+
+**根因**：`SkipSegmentResponse.videoDuration` 被声明为 `Int`，而服务端实际返回
+小数（`"videoDuration":1013.525`）。kotlinx.serialization 因此抛
+`JsonDecodingException`，而 `parseSegments` 用 `runCatching{}.getOrDefault(emptyList())`
+把整包吞掉——**一条字段类型不符就丢掉整个响应**，且不留任何日志，表现得和
+「服务端确实没有标注」完全一样。
+
+**排查要点**：拿到真实响应体（`curl` 时带上 `origin` / `x-ext-version` 请求头）
+后逐字段核对类型。SponsorBlock 接口里 `cid` 是**字符串**、`segment` 是
+`List<Double>`、`videoDuration` 是**小数**，不要凭文档猜。
+
+**修复**：
+1. DTO 字段类型对齐真实响应（`videoDuration: Double`）
+2. `parseSegments` 改为「先解析成 `JsonArray`，再逐条 `decodeFromJsonElement`」，
+   单条异常只丢该条，其余照常返回
+3. `SponsorBlockApi` 增加 `onError` 回调，由 `SponsorBlockRepository` 接到
+   `Loggers`；响应非数组、整体解析失败、单条解析失败都留 WARN 日志
+4. 播放器菜单「重新加载」项文案带状态（加载中 / 失败 / N 个片段 / 无标注），
+   让用户能区分「获取失败」与「确实没有标注」
+
+**同时修复的相关缺陷**：「重新加载片段数据」此前只绕过 ViewModel 的
+`appliedKey` 去重，仍会命中 `SponsorBlockRepository` 的进程内缓存，等于点了没反应。
+`getSkipSegments` 增加 `forceRefresh` 参数，`reload()` 传 `true`。
+
 ### 11.16 更新检查与发版仓库
 
 更新检查的仓库地址有**唯一配置源**：`buildSrc/src/main/kotlin/AppConfiguration.kt` 的

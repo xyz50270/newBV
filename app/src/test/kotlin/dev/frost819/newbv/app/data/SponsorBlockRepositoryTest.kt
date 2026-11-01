@@ -24,7 +24,7 @@ import org.junit.jupiter.api.Test
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class SponsorBlockRepositoryTest {
     private class CountingInterceptor(
-        private val body: String = "[]",
+        var body: String = "[]",
     ) : Interceptor {
         var callCount: Int = 0
 
@@ -136,5 +136,76 @@ class SponsorBlockRepositoryTest {
                     votes = 4,
                 ),
             )
+        }
+
+    @Test
+    fun `parses real payload with fractional videoDuration`() =
+        runBlocking {
+            // 回归：videoDuration 为小数时曾整包解析失败，返回空列表
+            val interceptor =
+                CountingInterceptor(
+                    body =
+                        """
+                        [{"cid":"43197532586","category":"sponsor","actionType":"skip","segment":[286.8,409.92],
+                          "UUID":"b703302c1e8ff9184bc538cffca0071278572bd53301ac64e80000919f2626047",
+                          "videoDuration":1013.525,"locked":0,"votes":0,"description":""}]
+                        """.trimIndent(),
+                )
+            val repository = repositoryWith(interceptor)
+
+            val segments =
+                repository.getSkipSegments("BV1KNxk6cEKi", 43_197_532_586L, listOf(SponsorCategory.Sponsor))
+
+            assertThat(segments).hasSize(1)
+            assertThat(segments[0].startMs).isEqualTo(286_800L)
+            assertThat(segments[0].endMs).isEqualTo(409_920L)
+        }
+
+    @Test
+    fun `forceRefresh bypasses cache`() =
+        runBlocking {
+            val interceptor = CountingInterceptor()
+            val repository = repositoryWith(interceptor)
+
+            repository.getSkipSegments("BV1bY4y1v7Mb", 100L, listOf(SponsorCategory.Sponsor))
+            repository.getSkipSegments("BV1bY4y1v7Mb", 100L, listOf(SponsorCategory.Sponsor))
+            // 「重新加载片段数据」必须真的重发请求，否则永远返回旧缓存
+            repository.getSkipSegments(
+                "BV1bY4y1v7Mb",
+                100L,
+                listOf(SponsorCategory.Sponsor),
+                forceRefresh = true,
+            )
+
+            assertThat(interceptor.callCount).isEqualTo(2)
+        }
+
+    @Test
+    fun `forceRefresh updates cached value`() =
+        runBlocking {
+            val interceptor =
+                CountingInterceptor(
+                    body =
+                        """
+                        [{"cid":"100","category":"sponsor","actionType":"skip","segment":[1,2],"UUID":"u1"}]
+                        """.trimIndent(),
+                )
+            val repository = repositoryWith(interceptor)
+            assertThat(repository.getSkipSegments("BV1bY4y1v7Mb", 100L, listOf(SponsorCategory.Sponsor)))
+                .hasSize(1)
+
+            interceptor.body = "[]"
+            assertThat(
+                repository.getSkipSegments(
+                    "BV1bY4y1v7Mb",
+                    100L,
+                    listOf(SponsorCategory.Sponsor),
+                    forceRefresh = true,
+                ),
+            ).isEmpty()
+            // 刷新结果写回缓存，后续普通读取也拿到新值
+            assertThat(repository.getSkipSegments("BV1bY4y1v7Mb", 100L, listOf(SponsorCategory.Sponsor)))
+                .isEmpty()
+            assertThat(interceptor.callCount).isEqualTo(2)
         }
 }

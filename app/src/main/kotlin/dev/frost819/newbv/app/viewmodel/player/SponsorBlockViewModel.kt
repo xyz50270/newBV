@@ -80,16 +80,18 @@ class SponsorBlockViewModel
          * @param aid 视频 AV 号
          * @param cid 分 P CID
          * @param isPgc 是否为番剧内容；番剧分集没有可用的 BV 号，跳过查询
+         * @param forceRefresh 是否绕过仓库进程内缓存（「重新加载」入口使用）
          */
         fun loadFor(
             aid: Long,
             cid: Long,
             isPgc: Boolean = false,
+            forceRefresh: Boolean = false,
         ) {
             val enabled = Prefs.sponsorBlockEnabled
             val categories = Prefs.sponsorBlockCategories.toSet()
             val key = "$aid#$cid#$isPgc#$enabled#$categories"
-            if (key == appliedKey) return
+            if (!forceRefresh && key == appliedKey) return
 
             loadJob?.cancel()
             appliedKey = key
@@ -108,6 +110,7 @@ class SponsorBlockViewModel
                         categories = categories,
                         segments = emptyList(),
                         isLoading = false,
+                        loadFailed = false,
                         // 片段列表已清空，旧的撤销目标不再对应任何数据
                         lastSkipped = null,
                     )
@@ -121,6 +124,7 @@ class SponsorBlockViewModel
                     categories = categories,
                     segments = emptyList(),
                     isLoading = true,
+                    loadFailed = false,
                     lastSkipped = null,
                 )
             }
@@ -128,16 +132,23 @@ class SponsorBlockViewModel
             val bvid = aid.toBv()
             loadJob =
                 viewModelScope.launch {
+                    var failed = false
                     val segments =
                         runCatching {
-                            repository.getSkipSegments(bvid = bvid, cid = cid, categories = categories)
+                            repository.getSkipSegments(
+                                bvid = bvid,
+                                cid = cid,
+                                categories = categories,
+                                forceRefresh = forceRefresh,
+                            )
                         }.onFailure { error ->
                             if (error is CancellationException) throw error
+                            failed = true
                             logger.warn { "Load sponsor segments failed: aid=$aid, cid=$cid, $error" }
                         }.getOrDefault(emptyList())
 
                     tracker.setSegments(segments)
-                    _state.update { it.copy(segments = segments, isLoading = false) }
+                    _state.update { it.copy(segments = segments, isLoading = false, loadFailed = failed) }
                     if (segments.isNotEmpty()) {
                         logger.info { "Loaded ${segments.size} sponsor segments: aid=$aid, cid=$cid" }
                     }
@@ -147,8 +158,8 @@ class SponsorBlockViewModel
         /**
          * 强制重新拉取当前视频的片段（播放器菜单「重新加载」入口）。
          *
-         * 与 [refresh] 的区别：无视「已应用组合」直接重发请求，用于社区数据更新后
-         * 手动刷新；会同时清空跳过记录，使本视频的片段重新获得自动跳过机会。
+         * 与 [refresh] 的区别：无视「已应用组合」**和仓库进程内缓存**直接重发请求，
+         * 用于社区数据更新后手动刷新；会同时清空跳过记录，使本视频的片段重新获得自动跳过机会。
          */
         fun reload() {
             val aid = currentAid
@@ -158,7 +169,7 @@ class SponsorBlockViewModel
                 return
             }
             appliedKey = null
-            loadFor(aid, cid, isPgc = currentIsPgc)
+            loadFor(aid, cid, isPgc = currentIsPgc, forceRefresh = true)
         }
 
         /**
@@ -224,7 +235,7 @@ class SponsorBlockViewModel
             appliedKey = null
             tracker.reset()
             clearTip()
-            _state.update { it.copy(segments = emptyList(), isLoading = false, lastSkipped = null) }
+            _state.update { it.copy(segments = emptyList(), isLoading = false, loadFailed = false, lastSkipped = null) }
         }
 
         private fun showTip(segment: SponsorSegment) {
@@ -261,6 +272,7 @@ class SponsorBlockViewModel
  * @property categories 启用自动跳过的分类
  * @property segments 当前分 P 的可跳过片段（按开始时间升序）
  * @property isLoading 是否正在拉取片段
+ * @property loadFailed 最近一次拉取是否失败；用于把「请求失败」与「确实没有标注」区分开
  * @property lastSkipped 最近一次自动跳过的片段
  * @property tipText 跳过提示文本；null 表示不显示
  */
@@ -269,6 +281,7 @@ data class SponsorBlockState(
     val categories: Set<SponsorCategory> = emptySet(),
     val segments: List<SponsorSegment> = emptyList(),
     val isLoading: Boolean = false,
+    val loadFailed: Boolean = false,
     val lastSkipped: SponsorSegment? = null,
     val tipText: String? = null,
 )

@@ -378,6 +378,9 @@ fun VideoPlayerScreen(
         sponsorSkipTipText = sponsorBlockState.tipText,
         sponsorBlockEnabled = sponsorBlockState.enabled,
         sponsorBlockCategories = sponsorBlockState.categories,
+        sponsorBlockSegmentCount = sponsorBlockState.segments.size,
+        sponsorBlockLoading = sponsorBlockState.isLoading,
+        sponsorBlockLoadFailed = sponsorBlockState.loadFailed,
         onSponsorBlockCategoriesChange = { categories ->
             Prefs.sponsorBlockCategories = categories.sortedBy { it.ordinal }
             sponsorBlockViewModel.refresh()

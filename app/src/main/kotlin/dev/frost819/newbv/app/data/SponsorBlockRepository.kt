@@ -1,5 +1,6 @@
 package dev.frost819.newbv.app.data
 
+import dev.frost819.newbv.core.log.Loggers
 import dev.frost819.newbv.sponsorblock.entity.SponsorCategory
 import dev.frost819.newbv.sponsorblock.entity.SponsorSegment
 import dev.frost819.newbv.sponsorblock.http.SponsorBlockApi
@@ -24,7 +25,16 @@ class SponsorBlockRepository
     constructor(
         client: OkHttpClient,
     ) {
-        private val api = SponsorBlockApi(client)
+        private val logger = Loggers.get("SponsorBlockRepository")
+
+        private val api =
+            SponsorBlockApi(
+                client = client,
+                onError = { error ->
+                    // 解析失败此前被完全吞掉，表现为「有标注但显示无片段」，必须留痕
+                    logger.warn(error) { "SponsorBlock 响应解析失败，本次按无片段处理" }
+                },
+            )
 
         private val cache =
             object : LinkedHashMap<String, List<SponsorSegment>>(CACHE_SIZE, 0.75f, true) {
@@ -39,16 +49,21 @@ class SponsorBlockRepository
          * @param bvid 视频 BV 号
          * @param cid 分 P CID
          * @param categories 需要查询的分类
+         * @param forceRefresh 是否跳过缓存直接重新请求（播放器菜单「重新加载」入口使用，
+         *   否则该按钮会永远返回缓存值，社区数据更新后也看不到变化）
          * @return 片段列表；网络失败或无数据时为空列表（不抛出异常，避免影响播放）
          */
         suspend fun getSkipSegments(
             bvid: String,
             cid: Long,
             categories: Collection<SponsorCategory>,
+            forceRefresh: Boolean = false,
         ): List<SponsorSegment> {
             if (bvid.isBlank()) return emptyList()
             val key = "$bvid#$cid#$categories"
-            synchronized(cache) { cache[key] }?.let { return it }
+            if (!forceRefresh) {
+                synchronized(cache) { cache[key] }?.let { return it }
+            }
 
             val segments = api.getSkipSegments(bvid = bvid, cid = cid, categories = categories)
             // 空结果也缓存：社区服务对无标注视频返回 404 很常见，重复请求同样是浪费

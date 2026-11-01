@@ -72,7 +72,7 @@ class SponsorBlockViewModelTest {
     @Test
     fun `loadFor fetches segments for current video`() =
         runTest(testDispatcher) {
-            coEvery { repository.getSkipSegments(any(), any(), any()) } returns listOf(sponsorSegment)
+            coEvery { repository.getSkipSegments(any(), any(), any(), any()) } returns listOf(sponsorSegment)
 
             viewModel.loadFor(aid = 993403941L, cid = 100L)
             advanceUntilIdle()
@@ -99,7 +99,7 @@ class SponsorBlockViewModelTest {
 
             assertThat(viewModel.state.value.enabled).isFalse()
             assertThat(viewModel.state.value.segments).isEmpty()
-            coVerify(exactly = 0) { repository.getSkipSegments(any(), any(), any()) }
+            coVerify(exactly = 0) { repository.getSkipSegments(any(), any(), any(), any()) }
         }
 
     @Test
@@ -108,26 +108,26 @@ class SponsorBlockViewModelTest {
             viewModel.loadFor(aid = 993403941L, cid = 0L)
             advanceUntilIdle()
 
-            coVerify(exactly = 0) { repository.getSkipSegments(any(), any(), any()) }
+            coVerify(exactly = 0) { repository.getSkipSegments(any(), any(), any(), any()) }
         }
 
     @Test
     fun `loadFor deduplicates identical target`() =
         runTest(testDispatcher) {
-            coEvery { repository.getSkipSegments(any(), any(), any()) } returns emptyList()
+            coEvery { repository.getSkipSegments(any(), any(), any(), any()) } returns emptyList()
 
             viewModel.loadFor(aid = 993403941L, cid = 100L)
             advanceUntilIdle()
             viewModel.loadFor(aid = 993403941L, cid = 100L)
             advanceUntilIdle()
 
-            coVerify(exactly = 1) { repository.getSkipSegments(any(), any(), any()) }
+            coVerify(exactly = 1) { repository.getSkipSegments(any(), any(), any(), any()) }
         }
 
     @Test
     fun `loadFor reloads when category set changes`() =
         runTest(testDispatcher) {
-            coEvery { repository.getSkipSegments(any(), any(), any()) } returns emptyList()
+            coEvery { repository.getSkipSegments(any(), any(), any(), any()) } returns emptyList()
 
             viewModel.loadFor(aid = 993403941L, cid = 100L)
             advanceUntilIdle()
@@ -136,13 +136,13 @@ class SponsorBlockViewModelTest {
             viewModel.loadFor(aid = 993403941L, cid = 100L)
             advanceUntilIdle()
 
-            coVerify(exactly = 2) { repository.getSkipSegments(any(), any(), any()) }
+            coVerify(exactly = 2) { repository.getSkipSegments(any(), any(), any(), any()) }
         }
 
     @Test
     fun `loadFor swallows repository failure`() =
         runTest(testDispatcher) {
-            coEvery { repository.getSkipSegments(any(), any(), any()) } throws
+            coEvery { repository.getSkipSegments(any(), any(), any(), any()) } throws
                 IllegalStateException("network down")
 
             viewModel.loadFor(aid = 993403941L, cid = 100L)
@@ -157,7 +157,7 @@ class SponsorBlockViewModelTest {
     @Test
     fun `onVideoPositionChanged emits skip event when position inside segment`() =
         runTest(testDispatcher) {
-            coEvery { repository.getSkipSegments(any(), any(), any()) } returns listOf(sponsorSegment)
+            coEvery { repository.getSkipSegments(any(), any(), any(), any()) } returns listOf(sponsorSegment)
             viewModel.loadFor(aid = 993403941L, cid = 100L)
             advanceUntilIdle()
 
@@ -172,7 +172,7 @@ class SponsorBlockViewModelTest {
     @Test
     fun `onVideoPositionChanged ignores position outside segment`() =
         runTest(testDispatcher) {
-            coEvery { repository.getSkipSegments(any(), any(), any()) } returns listOf(sponsorSegment)
+            coEvery { repository.getSkipSegments(any(), any(), any(), any()) } returns listOf(sponsorSegment)
             viewModel.loadFor(aid = 993403941L, cid = 100L)
             advanceUntilIdle()
 
@@ -184,7 +184,7 @@ class SponsorBlockViewModelTest {
     @Test
     fun `onVideoPositionChanged does not emit twice for same segment`() =
         runTest(testDispatcher) {
-            coEvery { repository.getSkipSegments(any(), any(), any()) } returns listOf(sponsorSegment)
+            coEvery { repository.getSkipSegments(any(), any(), any(), any()) } returns listOf(sponsorSegment)
             viewModel.loadFor(aid = 993403941L, cid = 100L)
             advanceUntilIdle()
 
@@ -201,7 +201,7 @@ class SponsorBlockViewModelTest {
     @Test
     fun `onVideoPositionChanged ignores disabled category`() =
         runTest(testDispatcher) {
-            coEvery { repository.getSkipSegments(any(), any(), any()) } returns listOf(sponsorSegment)
+            coEvery { repository.getSkipSegments(any(), any(), any(), any()) } returns listOf(sponsorSegment)
             every { Prefs.sponsorBlockCategories } returns listOf(SponsorCategory.Intro)
             viewModel.loadFor(aid = 993403941L, cid = 100L)
             advanceUntilIdle()
@@ -214,7 +214,7 @@ class SponsorBlockViewModelTest {
     @Test
     fun `onVideoPositionChanged sets tip text`() =
         runTest(testDispatcher) {
-            coEvery { repository.getSkipSegments(any(), any(), any()) } returns listOf(sponsorSegment)
+            coEvery { repository.getSkipSegments(any(), any(), any(), any()) } returns listOf(sponsorSegment)
             viewModel.loadFor(aid = 993403941L, cid = 100L)
             advanceUntilIdle()
 
@@ -226,7 +226,7 @@ class SponsorBlockViewModelTest {
     @Test
     fun `tip text clears after timeout`() =
         runTest(testDispatcher) {
-            coEvery { repository.getSkipSegments(any(), any(), any()) } returns listOf(sponsorSegment)
+            coEvery { repository.getSkipSegments(any(), any(), any(), any()) } returns listOf(sponsorSegment)
             viewModel.loadFor(aid = 993403941L, cid = 100L)
             advanceUntilIdle()
 
@@ -242,7 +242,7 @@ class SponsorBlockViewModelTest {
     @Test
     fun `undoLastSkip emits undo event to segment start`() =
         runTest(testDispatcher) {
-            coEvery { repository.getSkipSegments(any(), any(), any()) } returns listOf(sponsorSegment)
+            coEvery { repository.getSkipSegments(any(), any(), any(), any()) } returns listOf(sponsorSegment)
             viewModel.loadFor(aid = 993403941L, cid = 100L)
             advanceUntilIdle()
             viewModel.onVideoPositionChanged(15_000L)
@@ -266,7 +266,7 @@ class SponsorBlockViewModelTest {
     @Test
     fun `undoLastSkip clears lastSkipped so it can only undo once`() =
         runTest(testDispatcher) {
-            coEvery { repository.getSkipSegments(any(), any(), any()) } returns listOf(sponsorSegment)
+            coEvery { repository.getSkipSegments(any(), any(), any(), any()) } returns listOf(sponsorSegment)
             viewModel.loadFor(aid = 993403941L, cid = 100L)
             advanceUntilIdle()
             viewModel.onVideoPositionChanged(15_000L)
@@ -280,7 +280,7 @@ class SponsorBlockViewModelTest {
     @Test
     fun `undo does not retrigger skip while playback stays inside segment`() =
         runTest(testDispatcher) {
-            coEvery { repository.getSkipSegments(any(), any(), any()) } returns listOf(sponsorSegment)
+            coEvery { repository.getSkipSegments(any(), any(), any(), any()) } returns listOf(sponsorSegment)
             viewModel.loadFor(aid = 993403941L, cid = 100L)
             advanceUntilIdle()
             viewModel.onVideoPositionChanged(15_000L)
@@ -296,7 +296,7 @@ class SponsorBlockViewModelTest {
     @Test
     fun `reload refetches even when target unchanged`() =
         runTest(testDispatcher) {
-            coEvery { repository.getSkipSegments(any(), any(), any()) } returns listOf(sponsorSegment)
+            coEvery { repository.getSkipSegments(any(), any(), any(), any()) } returns listOf(sponsorSegment)
             viewModel.loadFor(aid = 993403941L, cid = 100L)
             advanceUntilIdle()
             viewModel.onVideoPositionChanged(15_000L)
@@ -304,9 +304,59 @@ class SponsorBlockViewModelTest {
             viewModel.reload()
             advanceUntilIdle()
 
-            coVerify(exactly = 2) { repository.getSkipSegments(any(), any(), any()) }
+            coVerify(exactly = 2) { repository.getSkipSegments(any(), any(), any(), any()) }
             // 重新加载后跳过记录被清空，同一片段可再次触发
             assertThat(viewModel.state.value.lastSkipped).isNull()
+        }
+
+    @Test
+    fun `reload bypasses repository cache`() =
+        runTest(testDispatcher) {
+            coEvery { repository.getSkipSegments(any(), any(), any(), any()) } returns listOf(sponsorSegment)
+
+            viewModel.loadFor(aid = 993403941L, cid = 100L)
+            advanceUntilIdle()
+            assertThat(viewModel.state.value.segments).hasSize(1)
+
+            // 社区数据更新后，普通刷新可能命中缓存；「重新加载」必须真正重发请求
+            viewModel.reload()
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) {
+                repository.getSkipSegments(any(), any(), any(), forceRefresh = true)
+            }
+        }
+
+    @Test
+    fun `loadFor reports load failure`() =
+        runTest(testDispatcher) {
+            coEvery { repository.getSkipSegments(any(), any(), any(), any()) } throws
+                java.io.IOException("network down")
+
+            viewModel.loadFor(aid = 993403941L, cid = 100L)
+            advanceUntilIdle()
+
+            // 区分「请求失败」与「确实没有标注」，否则界面上两者表现一致
+            assertThat(viewModel.state.value.loadFailed).isTrue()
+            assertThat(viewModel.state.value.isLoading).isFalse()
+            assertThat(viewModel.state.value.segments).isEmpty()
+        }
+
+    @Test
+    fun `loadFor clears load failure on retry`() =
+        runTest(testDispatcher) {
+            coEvery { repository.getSkipSegments(any(), any(), any(), any()) } throws
+                java.io.IOException("network down")
+            viewModel.loadFor(aid = 993403941L, cid = 100L)
+            advanceUntilIdle()
+            assertThat(viewModel.state.value.loadFailed).isTrue()
+
+            coEvery { repository.getSkipSegments(any(), any(), any(), any()) } returns listOf(sponsorSegment)
+            viewModel.reload()
+            advanceUntilIdle()
+
+            assertThat(viewModel.state.value.loadFailed).isFalse()
+            assertThat(viewModel.state.value.segments).hasSize(1)
         }
 
     // ── 重置 ────────────────────────────────────────────────
@@ -314,7 +364,7 @@ class SponsorBlockViewModelTest {
     @Test
     fun `reset clears segments and skip history`() =
         runTest(testDispatcher) {
-            coEvery { repository.getSkipSegments(any(), any(), any()) } returns listOf(sponsorSegment)
+            coEvery { repository.getSkipSegments(any(), any(), any(), any()) } returns listOf(sponsorSegment)
             viewModel.loadFor(aid = 993403941L, cid = 100L)
             advanceUntilIdle()
             viewModel.onVideoPositionChanged(15_000L)
@@ -328,14 +378,14 @@ class SponsorBlockViewModelTest {
     @Test
     fun `loadFor new cid reloads segments`() =
         runTest(testDispatcher) {
-            coEvery { repository.getSkipSegments(any(), any(), any()) } returns listOf(sponsorSegment)
+            coEvery { repository.getSkipSegments(any(), any(), any(), any()) } returns listOf(sponsorSegment)
 
             viewModel.loadFor(aid = 993403941L, cid = 100L)
             advanceUntilIdle()
             viewModel.loadFor(aid = 993403941L, cid = 200L)
             advanceUntilIdle()
 
-            coVerify(exactly = 2) { repository.getSkipSegments(any(), any(), any()) }
+            coVerify(exactly = 2) { repository.getSkipSegments(any(), any(), any(), any()) }
         }
 
     @Test
@@ -344,7 +394,7 @@ class SponsorBlockViewModelTest {
             viewModel.loadFor(aid = 993403941L, cid = 100L, isPgc = true)
             advanceUntilIdle()
 
-            coVerify(exactly = 0) { repository.getSkipSegments(any(), any(), any()) }
+            coVerify(exactly = 0) { repository.getSkipSegments(any(), any(), any(), any()) }
             assertThat(viewModel.state.value.segments).isEmpty()
         }
 
@@ -356,7 +406,7 @@ class SponsorBlockViewModelTest {
             viewModel.loadFor(aid = 993403941L, cid = 100L)
             advanceUntilIdle()
 
-            coVerify(exactly = 0) { repository.getSkipSegments(any(), any(), any()) }
+            coVerify(exactly = 0) { repository.getSkipSegments(any(), any(), any(), any()) }
             assertThat(viewModel.state.value.categories).isEmpty()
         }
 
