@@ -70,10 +70,13 @@ fun SponsorBlockSetting(modifier: Modifier = Modifier) {
             supportText = "当前：${categories.summaryText}",
             onClick = { showCategoriesDialog = true },
         )
-        SettingListItem(
-            title = "关于数据来源",
-            supportText = "社区标注服务 bsbsb.top，与浏览器扩展 BilibiliSponsorBlock 数据同步；标注由用户众包提交，可能不准确",
-            onClick = {},
+        // 纯说明文字不放 SettingListItem：那会让遥控器把焦点停在一个按确认键无反应的项上
+        Text(
+            modifier = Modifier.padding(top = 4.dp),
+            text =
+                "数据来源：社区标注服务 bsbsb.top，与浏览器扩展 BilibiliSponsorBlock 数据同步；" +
+                    "标注由用户众包提交，可能不准确。",
+            style = MaterialTheme.typography.bodyMedium,
         )
     }
 

@@ -40,6 +40,7 @@ fun RadioMenuList(
     onFocusBackToParent: () -> Unit,
 ) {
     val focusRequester = remember { FocusRequester() }
+    val focusAnchorIndex = focusAnchorIndexOf(selected, items.size)
     LazyColumn(
         modifier =
             modifier
@@ -62,7 +63,7 @@ fun RadioMenuList(
                 modifier =
                     Modifier
                         .width(200.dp)
-                        .ifElse(selected == index, Modifier.focusRequester(focusRequester)),
+                        .ifElse(index == focusAnchorIndex, Modifier.focusRequester(focusRequester)),
                 text = item,
                 selected = selected == index,
                 onClick = { onSelectedChanged(index) },
@@ -70,3 +71,21 @@ fun RadioMenuList(
         }
     }
 }
+
+/**
+ * 计算焦点锚点（挂载 [FocusRequester] 的项）应落在哪个索引。
+ *
+ * 锚点必须总是合法索引：列表的 `focusRestorer` 以同一个 [FocusRequester] 作为
+ * fallback，焦点首次进入列表时会调用它 `requestFocus()`；若没有任何项挂载该
+ * requester，Compose 会抛 `IllegalStateException("FocusRequester is not initialized")`。
+ * 「撤销跳过」「重新加载」这类纯动作列表没有选中的项（传 -1），必须回退到首项，
+ * 否则遥控器一进入该面板就崩溃。
+ *
+ * @param selected 当前选中项索引，可能越界
+ * @param itemCount 列表项数量
+ * @return 锚点索引；空列表返回 0（不会渲染任何项，调用方需自行保证非空）
+ */
+internal fun focusAnchorIndexOf(
+    selected: Int,
+    itemCount: Int,
+): Int = if (selected in 0 until itemCount) selected else 0

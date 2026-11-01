@@ -101,27 +101,31 @@ fun MenuListItem(
                     exit = fadeOut(),
                     label = "MenuListItem text [$text]",
                 ) {
-                    if (swatchColor != null) {
-                        Box(
+                    // 色块与文本必须同属一个 Row 子节点：AnimatedVisibility 的测量策略
+                    // 会把每个子节点都放在 (0,0)，多个子节点会重叠在一起
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (swatchColor != null) {
+                            Box(
+                                modifier =
+                                    Modifier
+                                        .padding(end = 6.dp)
+                                        .size(10.dp)
+                                        .background(color = swatchColor, shape = CircleShape),
+                            )
+                        }
+                        Text(
                             modifier =
                                 Modifier
-                                    .padding(end = 6.dp)
-                                    .size(10.dp)
-                                    .background(color = swatchColor, shape = CircleShape),
+                                    .weight(1f)
+                                    .height(32.dp)
+                                    .wrapContentHeight(Alignment.CenterVertically),
+                            text = text,
+                            style = MaterialTheme.typography.titleLarge,
+                            textAlign = textAlign,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
-                    Text(
-                        modifier =
-                            Modifier
-                                .weight(1f)
-                                .height(32.dp)
-                                .wrapContentHeight(Alignment.CenterVertically),
-                        text = text,
-                        style = MaterialTheme.typography.titleLarge,
-                        textAlign = textAlign,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
                 }
             }
             Row(
