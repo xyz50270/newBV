@@ -27,6 +27,7 @@ import dev.frost819.newbv.app.ui.component.comment.CommentDialogMode
 import dev.frost819.newbv.app.ui.component.comment.CommentsDialog
 import dev.frost819.newbv.app.ui.component.player.VideoInteractionDialog
 import dev.frost819.newbv.app.ui.component.player.VideoPlayerController
+import dev.frost819.newbv.app.ui.component.player.sponsorPreSkipTipTextOrNull
 import dev.frost819.newbv.app.ui.component.player.sponsorSeekMarkers
 import dev.frost819.newbv.app.ui.component.rememberDoublePressExit
 import dev.frost819.newbv.app.ui.component.videocard.VideoCardData
@@ -280,7 +281,16 @@ fun VideoPlayerScreen(
             onExit = { navController.popBackStack() },
             message = "再按一次退出播放",
         )
-    BackHandler { handleBack() }
+
+    // 返回键与「取消跳过」共用同一次按下：存在待跳过片段时，这一次返回键用于取消跳过，
+    // 不进入退出播放的计时（否则用户想取消广告跳过，却会看到「再按一次退出播放」，
+    // 再按一次就直接退出播放器）。仅当没有待跳过片段时才把按键交给退出流程。
+    val handleBackOrCancelSponsorSkip: () -> Unit = {
+        if (!sponsorBlockViewModel.cancelPendingSkip()) {
+            handleBack()
+        }
+    }
+    BackHandler { handleBackOrCancelSponsorSkip() }
 
     VideoPlayerController(
         modifier = Modifier.fillMaxSize(),
@@ -299,7 +309,7 @@ fun VideoPlayerScreen(
         },
         onExit = {
             logger.info { "[PLAYBACK] exit aid=${uiState.aid}, cid=${uiState.cid}" }
-            handleBack()
+            handleBackOrCancelSponsorSkip()
         },
         onGoTime = { time ->
             logger.info { "[PLAYBACK] seek aid=${uiState.aid}, cid=${uiState.cid}, positionMs=$time" }
@@ -376,6 +386,12 @@ fun VideoPlayerScreen(
             sponsorBlockViewModel.refresh()
         },
         sponsorSkipTipText = sponsorBlockState.tipText,
+        // 预提示文案随进度变化重算（倒计时），位置本身已由进度条状态驱动重组
+        sponsorPreSkipTipText =
+            sponsorPreSkipTipTextOrNull(
+                pending = sponsorBlockState.pendingSkip,
+                positionMs = seekerState.value.currentTime,
+            ),
         sponsorBlockEnabled = sponsorBlockState.enabled,
         sponsorBlockCategories = sponsorBlockState.categories,
         sponsorBlockSegmentCount = sponsorBlockState.segments.size,

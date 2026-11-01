@@ -1883,6 +1883,47 @@ TV 端用户不会为了一个开关退出播放器，只在设置页提供入�
 `appliedKey` 去重，仍会命中 `SponsorBlockRepository` 的进程内缓存，等于点了没反应。
 `getSkipSegments` 增加 `forceRefresh` 参数，`reload()` 传 `true`。
 
+#### 11.15.10 跳过预提示与返回键冲突
+
+片段到达前 10 秒显示「N 秒后自动跳过，按返回键取消」，此时返回键用于取消跳过。
+两个必须注意的点：
+
+**① 返回键不能同时触发「退出播放」。** 播放器的返回键原本统一走
+`rememberDoublePressExit`（第一次提示「再按一次退出播放」，第二次退出）。
+若预提示期间直接调用 `handleBack()`，用户想取消广告跳过却看到退出提示，
+再按一次就退出了播放器。正确做法是**在同一个 lambda 里先判取消**：
+
+```kotlin
+val handleBackOrCancelSponsorSkip: () -> Unit = {
+    if (!sponsorBlockViewModel.cancelPendingSkip()) handleBack()
+}
+```
+
+`cancelPendingSkip()` 返回 false（当前无待跳过片段）时才把按键交给退出流程，
+因此这次按键**不进入退出计时**。`BackHandler`（手机返回键）与
+`VideoPlayerController.onExit`（遥控器 Back）必须都指向这个 lambda。
+菜单打开时返回键先关菜单（`showClickableControllers` 分支在前），层级正确。
+
+**② 提前量必须夹到 0，不能算出负数窗口。** 片段起点距视频开头不足 10 秒时，
+`start - leadMs` 为负。窗口起点要 `coerceAtLeast(0L)`，使播放一开始就立即提示：
+
+```kotlin
+positionMs >= (it.startMs - leadMs).coerceAtLeast(0L) && positionMs < it.startMs
+```
+
+若直接用 `start - leadMs`，短视频上的预提示要么永不触发（位置不会小于 0），
+要么需要额外判断，得不偿失。
+
+**其它约束**：
+- 取消记录（`cancelledUuids`）与「已跳过」记录分离：`releaseRewoundSegments`
+  只清「已跳过」，取消是**本轮播放内永久**的，否则用户取消后拖回片段之前再
+  播一遍又会被自动跳过
+- `findSkipTarget` 也过滤取消集合，否则取消后进入片段照样被跳过
+- 预提示与「已跳过」提示互斥：命中片段时先清 `pendingSkip`
+- 预提示可关闭（设置 → 跳过广告 → 「跳过前 10 秒预提示」，默认开启）；
+  关闭后片段照常跳过，只是不给取消机会
+- 倒计时向上取整且下限 1 秒，避免出现「0 秒后自动跳过」
+
 ### 11.16 更新检查与发版仓库
 
 更新检查的仓库地址有**唯一配置源**：`buildSrc/src/main/kotlin/AppConfiguration.kt` 的

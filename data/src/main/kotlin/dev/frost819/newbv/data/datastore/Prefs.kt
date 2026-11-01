@@ -383,6 +383,13 @@ object Prefs {
         },
     )
 
+    /**
+     * 是否在片段到达前 10 秒显示「即将跳过」预提示（默认开启）。
+     *
+     * 关闭后片段仍会自动跳过，只是不再给用户按返回键取消的机会。
+     */
+    var sponsorBlockPreSkipTip by pref(PrefKeys.sponsorBlockPreSkipTip, true)
+
     // --- 应用界面（PRD 7.2） ---
 
     /** 界面缩放密度（默认 1f，app 层 init 时按屏幕宽度重新计算）。 */

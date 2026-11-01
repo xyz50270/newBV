@@ -72,6 +72,7 @@ internal object PrefKeys {
     // ===== 播放器 - 广告跳过（SponsorBlock） =====
     val sponsorBlockEnabled = booleanPreferencesKey("sponsor_block_enabled")
     val sponsorBlockCategories = stringPreferencesKey("sponsor_block_categories")
+    val sponsorBlockPreSkipTip = booleanPreferencesKey("sponsor_block_pre_skip_tip")
 
     // ===== 应用界面 =====
     val density = floatPreferencesKey("density")

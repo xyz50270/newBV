@@ -104,6 +104,7 @@ fun VideoPlayerController(
     onShowShortcutTip: (String) -> Unit,
     onToggleSponsorBlock: () -> Unit = {},
     sponsorSkipTipText: String? = null,
+    sponsorPreSkipTipText: String? = null,
     sponsorBlockEnabled: Boolean = false,
     sponsorBlockCategories: Set<dev.frost819.newbv.sponsorblock.entity.SponsorCategory> = emptySet(),
     sponsorBlockSegmentCount: Int = 0,
@@ -540,6 +541,7 @@ fun VideoPlayerController(
                 showPreviewTip = uiState.showPreviewTip,
                 shortcutTipText = uiState.shortcutTipText,
                 sponsorSkipTipText = sponsorSkipTipText,
+                sponsorPreSkipTipText = sponsorPreSkipTipText,
             )
 
             // 播放状态提示

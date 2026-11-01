@@ -40,6 +40,7 @@ fun SponsorBlockSetting(modifier: Modifier = Modifier) {
 
     var enabled by remember { mutableStateOf(Prefs.sponsorBlockEnabled) }
     var categories by remember { mutableStateOf(Prefs.sponsorBlockCategories.toSet()) }
+    var preSkipTip by remember { mutableStateOf(Prefs.sponsorBlockPreSkipTip) }
     var showCategoriesDialog by remember { mutableStateOf(false) }
 
     Column(
@@ -69,6 +70,17 @@ fun SponsorBlockSetting(modifier: Modifier = Modifier) {
             title = "自动跳过的片段类型",
             supportText = "当前：${categories.summaryText}",
             onClick = { showCategoriesDialog = true },
+        )
+        SettingSwitchListItem(
+            title = "跳过前 10 秒预提示",
+            supportText =
+                "片段开始前先提示「即将跳过」，此时按返回键可取消本次跳过。" +
+                    "关闭后直接跳过，不再提示。",
+            checked = preSkipTip,
+            onCheckedChange = {
+                preSkipTip = it
+                Prefs.sponsorBlockPreSkipTip = it
+            },
         )
         // 纯说明文字不放 SettingListItem：那会让遥控器把焦点停在一个按确认键无反应的项上
         Text(

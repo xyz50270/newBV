@@ -359,6 +359,91 @@ class SponsorBlockViewModelTest {
             assertThat(viewModel.state.value.segments).hasSize(1)
         }
 
+    // ── 预提示与取消 ────────────────────────────────────────
+
+    @Test
+    fun `pending skip is set inside lead window`() =
+        runTest(testDispatcher) {
+            coEvery { repository.getSkipSegments(any(), any(), any(), any()) } returns listOf(sponsorSegment)
+            viewModel.loadFor(aid = 993403941L, cid = 100L)
+            advanceUntilIdle()
+
+            // 片段起点 10_000ms，提前量 10_000ms → 窗口从 0 开始
+            viewModel.onVideoPositionChanged(0L)
+
+            assertThat(viewModel.state.value.pendingSkip).isEqualTo(sponsorSegment)
+        }
+
+    @Test
+    fun `pending skip is not set outside lead window`() =
+        runTest(testDispatcher) {
+            val late =
+                SponsorSegment(
+                    uuid = "late",
+                    startMs = 60_000,
+                    endMs = 70_000,
+                    category = SponsorCategory.Sponsor,
+                )
+            coEvery { repository.getSkipSegments(any(), any(), any(), any()) } returns listOf(late)
+            viewModel.loadFor(aid = 993403941L, cid = 100L)
+            advanceUntilIdle()
+
+            viewModel.onVideoPositionChanged(49_999L)
+            assertThat(viewModel.state.value.pendingSkip).isNull()
+
+            viewModel.onVideoPositionChanged(50_000L)
+            assertThat(viewModel.state.value.pendingSkip).isEqualTo(late)
+        }
+
+    @Test
+    fun `entering segment clears pending skip`() =
+        runTest(testDispatcher) {
+            coEvery { repository.getSkipSegments(any(), any(), any(), any()) } returns listOf(sponsorSegment)
+            viewModel.loadFor(aid = 993403941L, cid = 100L)
+            advanceUntilIdle()
+
+            viewModel.onVideoPositionChanged(5_000L)
+            assertThat(viewModel.state.value.pendingSkip).isEqualTo(sponsorSegment)
+
+            viewModel.onVideoPositionChanged(15_000L)
+            assertThat(viewModel.state.value.pendingSkip).isNull()
+            assertThat(viewModel.state.value.lastSkipped).isEqualTo(sponsorSegment)
+        }
+
+    @Test
+    fun `cancelPendingSkip cancels and suppresses future auto skip`() =
+        runTest(testDispatcher) {
+            coEvery { repository.getSkipSegments(any(), any(), any(), any()) } returns listOf(sponsorSegment)
+            viewModel.loadFor(aid = 993403941L, cid = 100L)
+            advanceUntilIdle()
+            viewModel.onVideoPositionChanged(5_000L)
+
+            assertThat(viewModel.cancelPendingSkip()).isTrue()
+            assertThat(viewModel.state.value.pendingSkip).isNull()
+
+            // 取消后即使真正进入片段也不再自动跳过
+            viewModel.onVideoPositionChanged(15_000L)
+            assertThat(viewModel.state.value.lastSkipped).isNull()
+            assertThat(viewModel.state.value.segments).isNotEmpty()
+        }
+
+    @Test
+    fun `cancelPendingSkip returns false when nothing pending`() =
+        runTest(testDispatcher) {
+            coEvery { repository.getSkipSegments(any(), any(), any(), any()) } returns listOf(sponsorSegment)
+            viewModel.loadFor(aid = 993403941L, cid = 100L)
+            advanceUntilIdle()
+
+            // 当前位置不在任何预提示窗口内，返回键应交给「退出播放」
+            assertThat(viewModel.cancelPendingSkip()).isFalse()
+        }
+
+    @Test
+    fun `cancelPendingSkip returns false without segments`() =
+        runTest(testDispatcher) {
+            assertThat(viewModel.cancelPendingSkip()).isFalse()
+        }
+
     // ── 重置 ────────────────────────────────────────────────
 
     @Test

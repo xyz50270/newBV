@@ -113,6 +113,7 @@ class SponsorBlockViewModel
                         loadFailed = false,
                         // 片段列表已清空，旧的撤销目标不再对应任何数据
                         lastSkipped = null,
+                        pendingSkip = null,
                     )
                 }
                 return
@@ -126,6 +127,7 @@ class SponsorBlockViewModel
                     isLoading = true,
                     loadFailed = false,
                     lastSkipped = null,
+                    pendingSkip = null,
                 )
             }
 
@@ -190,9 +192,14 @@ class SponsorBlockViewModel
         }
 
         /**
-         * 喂入播放位置，命中片段时发出跳过事件并显示提示。
+         * 喂入播放位置，驱动「预提示」与「命中跳过」。
          *
          * 由 UI 层以进度条频率（约 10Hz）调用；未启用或无片段时立即返回，开销可忽略。
+         *
+         * 判定顺序：
+         * 1. 位置已在片段内 → 发出跳过事件（此时预提示同步撤下）
+         * 2. 位置进入「起点前 [PRE_SKIP_LEAD_MS] 内」→ 置为待跳过并展示预提示
+         * 3. 其余情况 → 撤下预提示
          *
          * @param positionMs 当前播放位置（毫秒）
          */
@@ -200,16 +207,53 @@ class SponsorBlockViewModel
             val snapshot = _state.value
             if (!snapshot.enabled || snapshot.segments.isEmpty()) return
 
-            val target = tracker.findSkipTarget(positionMs, snapshot.categories) ?: return
-            val event = SponsorSkipEvent(aid = currentAid, cid = currentCid, segment = target)
-            // tryEmit 失败说明缓冲区也满了（UI 当前未收集），撤销跳过记录，
-            // 否则该片段会一直被当作「已跳过」而永远不再触发
-            if (!_skipEvent.tryEmit(event)) {
-                tracker.forget(target.uuid)
+            val target = tracker.findSkipTarget(positionMs, snapshot.categories)
+            if (target != null) {
+                // 已进入片段：预提示让位给「已跳过」提示
+                if (snapshot.pendingSkip != null) {
+                    _state.update { it.copy(pendingSkip = null) }
+                }
+                val event = SponsorSkipEvent(aid = currentAid, cid = currentCid, segment = target)
+                // tryEmit 失败说明缓冲区也满了（UI 当前未收集），撤销跳过记录，
+                // 否则该片段会一直被当作「已跳过」而永远不再触发
+                if (!_skipEvent.tryEmit(event)) {
+                    tracker.forget(target.uuid)
+                    return
+                }
+                _state.update { it.copy(lastSkipped = target) }
+                showTip(target)
                 return
             }
-            _state.update { it.copy(lastSkipped = target) }
-            showTip(target)
+
+            // 预提示可关闭：关闭后片段照常自动跳过，只是不再给用户取消的机会
+            if (!Prefs.sponsorBlockPreSkipTip) {
+                if (snapshot.pendingSkip != null) {
+                    _state.update { it.copy(pendingSkip = null) }
+                }
+                return
+            }
+
+            val upcoming = tracker.findUpcomingSegment(positionMs, snapshot.categories, PRE_SKIP_LEAD_MS)
+            if (upcoming?.uuid != snapshot.pendingSkip?.uuid) {
+                _state.update { it.copy(pendingSkip = upcoming) }
+            }
+        }
+
+        /**
+         * 取消当前预告的自动跳过（返回键入口）。
+         *
+         * 取消后本轮播放内该片段不再自动跳过，即使用户拖回片段之前也不会恢复，
+         * 避免「取消完又被自动跳过」。
+         *
+         * @return 是否存在被取消的预提示；false 表示当前没有待跳过的片段，
+         *   调用方应把这次返回键交给「退出播放」处理
+         */
+        fun cancelPendingSkip(): Boolean {
+            val pending = _state.value.pendingSkip ?: return false
+            tracker.cancel(pending.uuid)
+            _state.update { it.copy(pendingSkip = null) }
+            showTipText("已取消跳过${pending.category.displayName}")
+            return true
         }
 
         /**
@@ -235,7 +279,15 @@ class SponsorBlockViewModel
             appliedKey = null
             tracker.reset()
             clearTip()
-            _state.update { it.copy(segments = emptyList(), isLoading = false, loadFailed = false, lastSkipped = null) }
+            _state.update {
+                it.copy(
+                    segments = emptyList(),
+                    isLoading = false,
+                    loadFailed = false,
+                    lastSkipped = null,
+                    pendingSkip = null,
+                )
+            }
         }
 
         private fun showTip(segment: SponsorSegment) {
@@ -262,6 +314,9 @@ class SponsorBlockViewModel
         private companion object {
             /** 跳过提示显示时长（毫秒）。 */
             const val TIP_DURATION_MS = 3_000L
+
+            /** 预提示提前量（毫秒）：到达片段前 10 秒开始提示可取消。 */
+            const val PRE_SKIP_LEAD_MS = 10_000L
         }
     }
 
@@ -274,6 +329,7 @@ class SponsorBlockViewModel
  * @property isLoading 是否正在拉取片段
  * @property loadFailed 最近一次拉取是否失败；用于把「请求失败」与「确实没有标注」区分开
  * @property lastSkipped 最近一次自动跳过的片段
+ * @property pendingSkip 即将进入、可按返回键取消的片段；null 表示当前没有预提示
  * @property tipText 跳过提示文本；null 表示不显示
  */
 data class SponsorBlockState(
@@ -283,6 +339,7 @@ data class SponsorBlockState(
     val isLoading: Boolean = false,
     val loadFailed: Boolean = false,
     val lastSkipped: SponsorSegment? = null,
+    val pendingSkip: SponsorSegment? = null,
     val tipText: String? = null,
 )
 

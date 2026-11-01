@@ -38,12 +38,13 @@ import dev.frost819.newbv.core.theme.BVTheme
 /**
  * 跳转提示覆盖层。
  *
- * 在播放器左下角显示三种提示（可同时显示多个）：
+ * 在播放器左下角显示多种提示（可同时显示多个）：
  * - **试看提示**：视频需付费，当前为试看片段
  * - **跳下集提示**：播放结束，即将播放下一集
  * - **回到开头提示**：从上次播放位置继续，按确认键从头播放
  * - **快捷键提示**：显示最近一次触发的快捷键或分集边界提示
  * - **自动跳过提示**：赞助/推广片段被自动跳过时显示
+ * - **跳过预提示**：即将进入可跳过片段，按返回键可取消
  *
  * 每个提示通过 [PlayerTip] 独立做进出场动画，Column 自动堆叠。
  *
@@ -53,6 +54,7 @@ import dev.frost819.newbv.core.theme.BVTheme
  * @param showPreviewTip 是否显示"试看"提示
  * @param shortcutTipText 最近一次快捷键提示文本，为 null 时不显示
  * @param sponsorSkipTipText 广告片段自动跳过提示文本，为 null 时不显示
+ * @param sponsorPreSkipTipText 广告片段预提示文本（可按返回键取消），为 null 时不显示
  */
 @Composable
 fun SkipTips(
@@ -62,6 +64,7 @@ fun SkipTips(
     showPreviewTip: Boolean,
     shortcutTipText: String? = null,
     sponsorSkipTipText: String? = null,
+    sponsorPreSkipTipText: String? = null,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
         Column(
@@ -85,6 +88,12 @@ fun SkipTips(
                 show = showBackToStart,
                 text = "从上次播放位置继续，按确认键从头播放",
                 icon = Icons.Outlined.Replay,
+            )
+            // 预提示与「已跳过」不会同时出现：进入片段后预提示立即撤下
+            PlayerTip(
+                show = sponsorPreSkipTipText != null,
+                text = sponsorPreSkipTipText.orEmpty(),
+                icon = Icons.Outlined.SkipNext,
             )
             PlayerTip(
                 show = sponsorSkipTipText != null,
@@ -182,6 +191,19 @@ private fun SkipTipsBackToStartPreview() {
             showBackToStart = true,
             showSkipToNextEp = false,
             showPreviewTip = false,
+        )
+    }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF000000)
+@Composable
+private fun SkipTipsPreSkipPreview() {
+    BVTheme {
+        SkipTips(
+            showBackToStart = false,
+            showSkipToNextEp = false,
+            showPreviewTip = false,
+            sponsorPreSkipTipText = "赞助推广，8 秒后自动跳过，按返回键取消",
         )
     }
 }

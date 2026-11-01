@@ -156,6 +156,120 @@ class SponsorSkipTrackerTest {
         assertThat(tracker.findSkipTarget(15_000, setOf(SponsorCategory.Sponsor))).isNull()
     }
 
+    // ── 预提示（到达前 leadMs 内）────────────────────────────
+
+    @Test
+    fun `findUpcomingSegment returns segment inside lead window`() {
+        val tracker = SponsorSkipTracker()
+        val target = segment(30_000, 40_000)
+        tracker.setSegments(listOf(target))
+
+        // 起点前 10 秒窗口为 [20_000, 30_000)
+        val result = tracker.findUpcomingSegment(25_000, setOf(SponsorCategory.Sponsor), leadMs = 10_000)
+
+        assertThat(result).isEqualTo(target)
+    }
+
+    @Test
+    fun `findUpcomingSegment is inclusive at window start`() {
+        val tracker = SponsorSkipTracker()
+        val target = segment(30_000, 40_000)
+        tracker.setSegments(listOf(target))
+
+        val result = tracker.findUpcomingSegment(20_000, setOf(SponsorCategory.Sponsor), leadMs = 10_000)
+
+        assertThat(result).isEqualTo(target)
+    }
+
+    @Test
+    fun `findUpcomingSegment excludes position at segment start`() {
+        val tracker = SponsorSkipTracker()
+        tracker.setSegments(listOf(segment(30_000, 40_000)))
+
+        // 已进入片段时由 findSkipTarget 处理，预提示必须让位
+        val result = tracker.findUpcomingSegment(30_000, setOf(SponsorCategory.Sponsor), leadMs = 10_000)
+
+        assertThat(result).isNull()
+    }
+
+    @Test
+    fun `findUpcomingSegment clamps window to zero when segment starts early`() {
+        // 片段起点仅 3 秒，领先 10 秒会让窗口起点算成 -7000；
+        // 必须夹到 0，播放一开始就立即提示
+        val tracker = SponsorSkipTracker()
+        val target = segment(3_000, 13_000)
+        tracker.setSegments(listOf(target))
+
+        val result = tracker.findUpcomingSegment(0, setOf(SponsorCategory.Sponsor), leadMs = 10_000)
+
+        assertThat(result).isEqualTo(target)
+    }
+
+    @Test
+    fun `findUpcomingSegment skips already cancelled segment`() {
+        val tracker = SponsorSkipTracker()
+        val target = segment(30_000, 40_000)
+        tracker.setSegments(listOf(target))
+        tracker.cancel(target.uuid)
+
+        val result = tracker.findUpcomingSegment(25_000, setOf(SponsorCategory.Sponsor), leadMs = 10_000)
+
+        assertThat(result).isNull()
+    }
+
+    @Test
+    fun `findUpcomingSegment returns earliest when several windows overlap`() {
+        val tracker = SponsorSkipTracker()
+        val first = segment(20_000, 25_000, uuid = "first")
+        val second = segment(25_000, 30_000, uuid = "second")
+        tracker.setSegments(listOf(first, second))
+
+        val result = tracker.findUpcomingSegment(15_000, setOf(SponsorCategory.Sponsor), leadMs = 10_000)
+
+        assertThat(result).isEqualTo(first)
+    }
+
+    // ── 用户取消 ──────────────────────────────────────────────
+
+    @Test
+    fun `cancelled segment is never auto skipped`() {
+        val tracker = SponsorSkipTracker()
+        val target = segment(10_000, 20_000)
+        tracker.setSegments(listOf(target))
+        tracker.cancel(target.uuid)
+
+        val result = tracker.findSkipTarget(15_000, setOf(SponsorCategory.Sponsor))
+
+        assertThat(result).isNull()
+    }
+
+    @Test
+    fun `cancelled segment stays cancelled after rewinding before it`() {
+        val tracker = SponsorSkipTracker()
+        val target = segment(10_000, 20_000)
+        tracker.setSegments(listOf(target))
+        tracker.cancel(target.uuid)
+
+        // 拖回片段之前：只清「已跳过」记录，取消记录必须保留
+        tracker.findSkipTarget(1_000, setOf(SponsorCategory.Sponsor))
+        val result = tracker.findSkipTarget(15_000, setOf(SponsorCategory.Sponsor))
+
+        assertThat(result).isNull()
+    }
+
+    @Test
+    fun `setSegments clears cancellation records`() {
+        val tracker = SponsorSkipTracker()
+        val target = segment(10_000, 20_000)
+        tracker.setSegments(listOf(target))
+        tracker.cancel(target.uuid)
+
+        // 重新拉取数据后应重新获得跳过机会（与「跳过记录」一致）
+        tracker.setSegments(listOf(target))
+
+        assertThat(tracker.findSkipTarget(15_000, setOf(SponsorCategory.Sponsor))).isEqualTo(target)
+    }
+
     @Test
     fun `setSegments sorts by start time`() {
         val tracker = SponsorSkipTracker()
