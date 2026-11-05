@@ -130,7 +130,10 @@ fun NavGraphBuilder.livePlayerScreen(navController: NavController) {
             )
             danmakuViewModel.init()
             viewModel.initVideoPlayer(context)
-            viewModel.loadLive(route.roomId, danmakuViewModel.danmakuPlayer)
+            viewModel.loadLive(
+                roomId = route.roomId,
+                danmakuPlayer = danmakuViewModel.danmakuPlayer,
+            )
         }
 
         DisposableEffect(Unit) {

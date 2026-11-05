@@ -6,6 +6,7 @@ import androidx.compose.material.icons.outlined.ClearAll
 import androidx.compose.material.icons.outlined.ClosedCaption
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Speed
+import androidx.compose.material.icons.outlined.SkipNext
 import androidx.compose.runtime.compositionLocalOf
 import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -89,11 +90,12 @@ enum class VideoPlayerMenuNavItem(
     val displayName: String,
     val icon: androidx.compose.ui.graphics.vector.ImageVector,
 ) {
-    PlaySpeed("倍速", Icons.Outlined.Speed),
-    Picture("画质", Icons.Outlined.Image),
-    Danmaku("弹幕", Icons.Outlined.ClearAll),
-    ClosedCaption("字幕", Icons.Outlined.ClosedCaption),
-    SponsorBlock("跳过广告", Icons.Outlined.Block),
+    PlaySpeed("倍速播放", Icons.Outlined.Speed),
+    Picture("画质设置", Icons.Outlined.Image),
+    Danmaku("弹幕设置", Icons.Outlined.ClearAll),
+    DanmakuFilter("弹幕屏蔽", Icons.Outlined.Block),
+    ClosedCaption("字幕设置", Icons.Outlined.ClosedCaption),
+    SponsorBlock("跳过广告", Icons.Outlined.SkipNext),
 }
 
 /** 广告片段跳过设置子项。 */
@@ -126,6 +128,16 @@ enum class VideoPlayerDanmakuMenuItem(
     SpeedFactor("速度"),
     Area("区域"),
     Mask("防遮挡"),
+}
+
+/** 弹幕屏蔽子项。 */
+enum class VideoPlayerDanmakuFilterMenuItem(
+    val displayName: String,
+) {
+    BlockColorful("屏蔽彩色弹幕"),
+    BlockRepeat("合并重复弹幕"),
+    BlockByUserFilter("账号屏蔽规则"),
+    AiCloudLevel("AI 云屏蔽"),
 }
 
 /** 字幕设置子项。 */

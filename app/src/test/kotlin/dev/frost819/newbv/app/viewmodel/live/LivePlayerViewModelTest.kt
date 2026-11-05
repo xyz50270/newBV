@@ -3,9 +3,14 @@ package dev.frost819.newbv.app.viewmodel.live
 import androidx.compose.runtime.MutableState
 import androidx.lifecycle.viewModelScope
 import com.google.common.truth.Truth.assertThat
+import com.kuaishou.akdanmaku.data.DanmakuItemData
+import com.kuaishou.akdanmaku.ui.DanmakuPlayer
+import dev.frost819.newbv.app.data.danmaku.DanmakuFilterRepository
 import dev.frost819.newbv.app.ui.state.live.LivePlayerState
 import dev.frost819.newbv.app.ui.state.live.LivePlayerUiState
 import dev.frost819.newbv.app.util.VideoCapabilityProvider
+import dev.frost819.newbv.biliapi.http.entity.live.DanmakuEvent
+import dev.frost819.newbv.biliapi.http.entity.live.RoomInfoData
 import dev.frost819.newbv.biliapi.repositories.LivePlayInfo
 import dev.frost819.newbv.biliapi.repositories.LivePlayLine
 import dev.frost819.newbv.biliapi.repositories.LiveQuality
@@ -43,6 +48,7 @@ class LivePlayerViewModelTest {
     private lateinit var liveRepository: LiveRepository
     private lateinit var exoPlayerFactory: ExoPlayerFactory
     private lateinit var videoCapabilityProvider: VideoCapabilityProvider
+    private lateinit var danmakuFilterRepository: DanmakuFilterRepository
     private lateinit var viewModel: LivePlayerViewModel
     private lateinit var mockPlayer: AbstractVideoPlayer
 
@@ -52,8 +58,15 @@ class LivePlayerViewModelTest {
         liveRepository = mockk(relaxed = true)
         exoPlayerFactory = mockk(relaxed = true)
         videoCapabilityProvider = mockk(relaxed = true)
+        danmakuFilterRepository = mockk(relaxed = true)
         mockPlayer = mockk(relaxed = true)
-        viewModel = LivePlayerViewModel(liveRepository, exoPlayerFactory, videoCapabilityProvider)
+        viewModel =
+            LivePlayerViewModel(
+                liveRepository,
+                exoPlayerFactory,
+                videoCapabilityProvider,
+                danmakuFilterRepository,
+            )
         setVideoPlayer(mockPlayer)
     }
 
@@ -308,6 +321,118 @@ class LivePlayerViewModelTest {
                 .isEqualTo(LivePlayerState.Error("音频解码失败，请尝试切换线路"))
         }
 
+    // ── UP 主信息 ─────────────────────────────────────────────
+
+    @Test
+    fun `withRoomInfo merges anchor info into ui state`() {
+        val roomInfo =
+            RoomInfoData(
+                roomId = 1,
+                shortId = 0,
+                uid = 123L,
+                liveStatus = 1,
+                title = "直播间标题",
+                areaV2Name = "虚拟主播",
+                uname = "主播",
+                face = "https://example.com/face.jpg",
+            )
+
+        val merged = LivePlayerUiState().withRoomInfo(roomInfo)
+
+        assertThat(merged.title).isEqualTo("直播间标题")
+        assertThat(merged.areaName).isEqualTo("虚拟主播")
+        assertThat(merged.upMid).isEqualTo(123L)
+        assertThat(merged.upName).isEqualTo("主播")
+        assertThat(merged.upFace).isEqualTo("https://example.com/face.jpg")
+    }
+
+    @Test
+    fun `withRoomInfo keeps route title when room title is blank`() {
+        val roomInfo =
+            RoomInfoData(
+                roomId = 1,
+                shortId = 0,
+                uid = 123L,
+                liveStatus = 1,
+                title = "",
+            )
+
+        val merged = LivePlayerUiState(title = "路由标题").withRoomInfo(roomInfo)
+
+        assertThat(merged.title).isEqualTo("路由标题")
+    }
+
+    @Test
+    fun `withRoomInfo prefers anchor card info over blank room info`() {
+        // 线上 /room/v1/Room/get_info 不返回 uname/face，主播信息由用户卡片接口补全
+        val roomInfo =
+            RoomInfoData(
+                roomId = 1,
+                shortId = 0,
+                uid = 123L,
+                liveStatus = 1,
+                title = "标题",
+            )
+
+        val merged =
+            LivePlayerUiState().withRoomInfo(
+                roomInfo = roomInfo,
+                anchorName = "主播",
+                anchorFace = "https://example.com/face.jpg",
+            )
+
+        assertThat(merged.upMid).isEqualTo(123L)
+        assertThat(merged.upName).isEqualTo("主播")
+        assertThat(merged.upFace).isEqualTo("https://example.com/face.jpg")
+    }
+
+    // ── 弹幕屏蔽与透传 ──────────────────────────────────────
+
+    @Test
+    fun `live danmaku is dropped when account rule matches`() =
+        runTest(testDispatcher) {
+            val player = mockk<DanmakuPlayer>(relaxed = true)
+            setDanmakuPlayer(player)
+            every { danmakuFilterRepository.shouldDropLive(any(), any()) } returns true
+
+            viewModel.handleLiveEvent(DanmakuEvent(content = "广告", mid = 1L, username = "u"))
+            advanceUntilIdle()
+
+            verify { danmakuFilterRepository.shouldDropLive(content = "广告", mid = 1L) }
+            // 命中规则后直接返回，不读取播放位置、也不送入引擎
+            verify(exactly = 0) { player.getCurrentTimeMs() }
+        }
+
+    @Test
+    fun `buildLiveDanmakuData maps mode and color`() {
+        val top =
+            viewModel.buildLiveDanmakuData(
+                danmakuId = 1L,
+                content = "hi",
+                mid = 2L,
+                mode = 5,
+                textColor = 0xFF0000,
+                position = 0L,
+            )
+        assertThat(top.mode).isEqualTo(DanmakuItemData.DANMAKU_MODE_CENTER_TOP)
+        assertThat(top.textColor).isEqualTo(0xFF0000)
+
+        val bottom =
+            viewModel.buildLiveDanmakuData(2L, "hi", 2L, mode = 4, textColor = 0xFFFFFF, position = 0L)
+        assertThat(bottom.mode).isEqualTo(DanmakuItemData.DANMAKU_MODE_CENTER_BOTTOM)
+
+        val rolling =
+            viewModel.buildLiveDanmakuData(3L, "hi", 2L, mode = 1, textColor = 0xFFFFFF, position = 0L)
+        assertThat(rolling.mode).isEqualTo(DanmakuItemData.DANMAKU_MODE_ROLLING)
+    }
+
+    @Test
+    fun `loadLive prefetches account rules`() {
+        viewModel.loadLive(roomId = 1L)
+
+        verify { danmakuFilterRepository.prefetch() }
+    }
+
     // ── Helpers ──────────────────────────────────────────────
 
     /** 读取 `videoPlayerListener` 字段（播放器事件匿名对象）。 */
@@ -323,6 +448,12 @@ class LivePlayerViewModelTest {
         @Suppress("UNCHECKED_CAST")
         val delegate = field.get(viewModel) as MutableState<AbstractVideoPlayer?>
         delegate.value = player
+    }
+
+    private fun setDanmakuPlayer(player: DanmakuPlayer?) {
+        val field = LivePlayerViewModel::class.java.getDeclaredField("danmakuPlayer")
+        field.isAccessible = true
+        field.set(viewModel, player)
     }
 
     private fun updateUiState(transform: (LivePlayerUiState) -> LivePlayerUiState) {

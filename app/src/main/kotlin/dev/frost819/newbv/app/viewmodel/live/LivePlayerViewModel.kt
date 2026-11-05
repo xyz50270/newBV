@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.kuaishou.akdanmaku.data.DanmakuItemData
 import com.kuaishou.akdanmaku.ui.DanmakuPlayer
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.frost819.newbv.app.data.danmaku.DanmakuFilterRepository
 import dev.frost819.newbv.app.ui.component.livecard.formatOnlineCount
 import dev.frost819.newbv.app.ui.state.live.LivePlayerState
 import dev.frost819.newbv.app.ui.state.live.LivePlayerUiState
@@ -18,6 +19,7 @@ import dev.frost819.newbv.app.util.toPlaybackLoadErrorMessage
 import dev.frost819.newbv.biliapi.http.entity.live.DanmakuEvent
 import dev.frost819.newbv.biliapi.http.entity.live.LiveEvent
 import dev.frost819.newbv.biliapi.http.entity.live.OnlineRankCountEvent
+import dev.frost819.newbv.biliapi.http.entity.live.RoomInfoData
 import dev.frost819.newbv.biliapi.repositories.LivePlayInfo
 import dev.frost819.newbv.biliapi.repositories.LivePlayLine
 import dev.frost819.newbv.biliapi.repositories.LiveQuality
@@ -60,6 +62,7 @@ class LivePlayerViewModel
         private val liveRepository: LiveRepository,
         private val exoPlayerFactory: ExoPlayerFactory,
         private val videoCapabilityProvider: VideoCapabilityProvider,
+        private val danmakuFilterRepository: DanmakuFilterRepository,
     ) : ViewModel() {
         private val logger = Loggers.get("LivePlayerViewModel")
 
@@ -80,11 +83,7 @@ class LivePlayerViewModel
         /** 调试信息，仅在 [Prefs.showPlayerDebugInfo] 开启时更新。 */
         val debugInfo: StateFlow<String> = _debugInfo.asStateFlow()
 
-        /**
-         * 播放器事件回调。
-         *
-         * 提成字段（而非内联匿名对象）便于单测直接驱动各回调；错误态统一由 [failPlayback] 写入。
-         */
+        /** 提成字段便于单测直接驱动回调；错误态统一由 [failPlayback] 写入。 */
         private val videoPlayerListener =
             object : VideoPlayerListener {
                 override fun onError(error: Exception) {
@@ -178,6 +177,8 @@ class LivePlayerViewModel
             danmakuPlayer: DanmakuPlayer? = null,
         ) {
             this.danmakuPlayer = danmakuPlayer
+            // 账号云端屏蔽规则通常已在 App 启动时预热；这里兜底补拉，失败不阻塞直播
+            danmakuFilterRepository.prefetch()
             loadLiveInternal(roomId)
         }
 
@@ -204,15 +205,17 @@ class LivePlayerViewModel
                     _uiState.update { it.copy(realRoomId = realRoomId, liveStatus = roomInit.liveStatus) }
 
                     val roomInfo = liveRepository.getRoomInfo(realRoomId)
+                    // /room/v1/Room/get_info 不含 uname/face，需再查用户卡片补全主播名称与头像
+                    val anchorCard =
+                        runCatching { liveRepository.getAnchorCard(roomInfo.uid) }
+                            .onFailure { logger.warn(it) { "Failed to fetch anchor card: uid=${roomInfo.uid}" } }
+                            .getOrNull()
                     _uiState.update {
-                        val newState =
-                            it.copy(
-                                title = roomInfo.title.ifBlank { _uiState.value.title },
-                                cover = roomInfo.cover.ifBlank { roomInfo.keyframe },
-                                areaName = roomInfo.areaV2Name,
-                                onlineCount = formatOnlineCount(roomInfo.online),
-                            )
-                        newState
+                        it.withRoomInfo(
+                            roomInfo = roomInfo,
+                            anchorName = anchorCard?.name ?: "",
+                            anchorFace = anchorCard?.face ?: "",
+                        )
                     }
 
                     val requestedKey = _uiState.value.currentQuality.takeIf { it > 0 } ?: 0
@@ -248,14 +251,7 @@ class LivePlayerViewModel
             }
         }
 
-        /**
-         * 置错误态。
-         *
-         * 同时清掉缓冲标记：错误浮层优先级高于转圈，残留的 `isBuffering` 还会让
-         * 后续重连误判为仍在加载。
-         *
-         * @param message 面向用户的错误文案
-         */
+        /** 置错误态并清掉缓冲标记（错误浮层优先于转圈，残留缓冲会让重连误判）。 */
         private fun failPlayback(message: String) {
             _uiState.update {
                 it.copy(
@@ -339,12 +335,13 @@ class LivePlayerViewModel
          * 处理直播弹幕事件。
          *
          * WebSocket 回调运行在 IO 线程，需切换到主线程操作弹幕播放器。
+         * `internal` 供单元测试直接驱动事件（生产环境只由 WebSocket 调用）。
          */
-        private fun handleLiveEvent(event: LiveEvent) {
+        internal fun handleLiveEvent(event: LiveEvent) {
             viewModelScope.launch(Dispatchers.Main.immediate) {
                 when (event) {
                     is DanmakuEvent -> {
-                        sendDanmaku(event.content, event.mid)
+                        sendDanmaku(event.content, event.mid, event.mode, event.color)
                     }
                     is OnlineRankCountEvent -> {
                         _uiState.update {
@@ -356,27 +353,56 @@ class LivePlayerViewModel
             }
         }
 
+        /** 将直播弹幕送入引擎，先套用账号云端屏蔽规则；mode 4/5 显示为底部/顶部，其余滚动。 */
         private fun sendDanmaku(
             content: String,
             mid: Long,
+            mode: Int = 1,
+            textColor: Int = 0xFFFFFF,
         ) {
-            val danmakuId = danmakuIdCounter++
+            if (danmakuFilterRepository.shouldDropLive(content = content, mid = mid)) return
             val data =
-                DanmakuItemData(
-                    danmakuId = danmakuId,
-                    position = danmakuPlayer?.getCurrentTimeMs() ?: 0,
+                buildLiveDanmakuData(
+                    danmakuId = danmakuIdCounter++,
                     content = content,
-                    mode = DanmakuItemData.DANMAKU_MODE_ROLLING,
-                    textSize = 25,
-                    textColor = 0xFFFFFF,
-                    score = 0,
-                    danmakuStyle = 0,
-                    rank = 0,
-                    userId = mid,
-                    mergedType = DanmakuItemData.MERGED_TYPE_NORMAL,
+                    mid = mid,
+                    mode = mode,
+                    textColor = textColor,
+                    position = danmakuPlayer?.getCurrentTimeMs() ?: 0,
                 )
             danmakuPlayer?.send(data)
         }
+
+        /**
+         * 构造直播弹幕渲染数据（mode 4/5 → 底部/顶部，其余滚动）。
+         *
+         * 独立为纯函数便于单测验证 mode/color 透传，避免依赖弹幕引擎。
+         */
+        internal fun buildLiveDanmakuData(
+            danmakuId: Long,
+            content: String,
+            mid: Long,
+            mode: Int,
+            textColor: Int,
+            position: Long,
+        ): DanmakuItemData =
+            DanmakuItemData(
+                danmakuId = danmakuId,
+                position = position,
+                content = content,
+                mode =
+                    when (mode) {
+                        4 -> DanmakuItemData.DANMAKU_MODE_CENTER_BOTTOM
+                        5 -> DanmakuItemData.DANMAKU_MODE_CENTER_TOP
+                        else -> DanmakuItemData.DANMAKU_MODE_ROLLING
+                    },
+                textSize = 25,
+                textColor = textColor,
+                score = 0,
+                danmakuStyle = 0,
+                rank = 0,
+                userId = mid,
+            )
 
         /**
          * 播放/暂停切换。
@@ -460,12 +486,7 @@ class LivePlayerViewModel
             }
         }
 
-        /**
-         * 过滤掉本机无法解码的 HDR 画质档位。
-         *
-         * SDR 档始终保留（维持既有行为）；HDR 档按携带它的编码（通常为 HEVC/AV1/杜比视界）
-         * 查询本机解码能力，不可解则从画质菜单中隐藏，避免用户选中后播放失败。
-         */
+        /** 隐藏本机无法解码的 HDR 档（SDR 始终保留），避免选中后播放失败。 */
         private fun filterDecodableQualities(qualities: List<LiveQuality>): List<LiveQuality> =
             qualities.filter { quality ->
                 if (!quality.isHdr) return@filter true
@@ -476,12 +497,7 @@ class LivePlayerViewModel
                 decodable
             }
 
-        /**
-         * 将当前档位标识重映射到过滤后的画质列表内。
-         *
-         * 若 [currentKey] 对应的档位被能力过滤移除（或服务端降级后不存在），
-         * 回退到列表首项（最高可用档），保证菜单选中态与续播请求的 key 有效。
-         */
+        /** 档位被能力过滤或服务端降级移除时回退到首项，保证选中态与请求 key 有效。 */
         private fun resolveCurrentKey(
             qualities: List<LiveQuality>,
             currentKey: Int,
@@ -491,13 +507,7 @@ class LivePlayerViewModel
                 ?: qualities.firstOrNull()?.key
                 ?: fallbackKey
 
-        /**
-         * 从 HDR 档位携带的解码提示构造 [VideoDecodeProfile]。
-         *
-         * 编码判定：RFC 6381 串以 dvh1/dvhe 开头为杜比视界，否则按编码名（hevc/av1）识别。
-         * 调用方已保证 codecName/codecs 至少其一非空（无提示的 HDR 档已提前放行），
-         * 此处 else 仅兜住 codecName 无法识别的罕见情形。
-         */
+        /** 从 HDR 档的解码提示构造 [VideoDecodeProfile]；dvh1/dvhe 为杜比视界。 */
         private fun LiveQuality.toDecodeProfile(): VideoDecodeProfile {
             val codec =
                 when {
@@ -549,3 +559,28 @@ class LivePlayerViewModel
             detachPlayer()
         }
     }
+
+/**
+ * 将直播间信息合并进 UI 状态。
+ *
+ * 标题/封面缺失时保留进入页面时路由带来的值；主播信息用于控制条上的 UP 主主页入口。
+ * `uname`/`face` 可能由外部接口（用户卡片）补全，为空时回退到 [roomInfo] 中的字段。
+ *
+ * @param roomInfo `GET /room/v1/Room/get_info` 返回的直播间信息
+ * @param anchorName 用户卡片接口补全的主播昵称
+ * @param anchorFace 用户卡片接口补全的主播头像
+ */
+internal fun LivePlayerUiState.withRoomInfo(
+    roomInfo: RoomInfoData,
+    anchorName: String = "",
+    anchorFace: String = "",
+): LivePlayerUiState =
+    copy(
+        title = roomInfo.title.ifBlank { title },
+        cover = roomInfo.cover.ifBlank { roomInfo.keyframe },
+        areaName = roomInfo.areaV2Name,
+        onlineCount = formatOnlineCount(roomInfo.online),
+        upMid = roomInfo.uid,
+        upName = anchorName.ifBlank { roomInfo.uname },
+        upFace = anchorFace.ifBlank { roomInfo.face },
+    )
