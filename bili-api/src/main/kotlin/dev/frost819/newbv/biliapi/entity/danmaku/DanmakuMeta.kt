@@ -37,7 +37,7 @@ data class DanmakuMeta(
 /**
  * 将 Web dm/view protobuf 响应转换为 [DanmakuMeta]。
  *
- * 对应端点：GET /x/v2/dm/web/view（见 docs/bilibili-API-collect-master/docs/danmaku/danmaku_proto.md）
+ * 对应端点：GET /x/v2/dm/web/view（见 dev-doc/bilibili-API-collect-master/docs/danmaku/danmaku_proto.md）
  *
  * @receiver dm/view 的 protobuf 响应
  * @return 分段配置元数据；`dmSge` 缺失时 [DanmakuMeta.segmentSizeMs] 为 0，由调用方兜底

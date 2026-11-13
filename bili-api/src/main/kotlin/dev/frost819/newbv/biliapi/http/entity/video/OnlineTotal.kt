@@ -7,7 +7,7 @@ import kotlinx.serialization.Serializable
  * 视频同时观看人数（在线人数）。
  *
  * 对应接口：GET /x/player/online/total
- * 文档：docs/bilibili-API-collect-master/docs/video/online.md
+ * 文档：dev-doc/bilibili-API-collect-master/docs/video/online.md
  *
  * @property total 所有终端总计人数文本（服务端预格式化，如 `"9.4万+"`）
  * @property count web 端实时在线人数文本

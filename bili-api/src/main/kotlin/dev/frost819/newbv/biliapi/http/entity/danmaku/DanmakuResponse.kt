@@ -64,7 +64,7 @@ data class DanmakuData(
          * 从 gRPC [DanmakuElem]（protobuf）转换弹幕数据。
          *
          * Web `seg.so` 与 App `DM.DmSegMobile` 双通道共用此映射。
-         * 对应文档：docs/bilibili-API-collect-master/docs/danmaku/danmaku_proto.md
+         * 对应文档：dev-doc/bilibili-API-collect-master/docs/danmaku/danmaku_proto.md
          */
         fun fromDanmakuElem(
             elem: DanmakuElem,

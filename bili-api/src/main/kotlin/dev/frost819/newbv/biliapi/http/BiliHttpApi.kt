@@ -520,7 +520,7 @@ object BiliHttpApi {
     /**
      * 获取视频弹幕分段（Web protobuf 接口）。
      *
-     * 对应文档：docs/bilibili-API-collect-master/docs/danmaku/danmaku_proto.md
+     * 对应文档：dev-doc/bilibili-API-collect-master/docs/danmaku/danmaku_proto.md
      * 端点：GET /x/v2/dm/wbi/web/seg.so（路径含 wbi，由 encApiSign 拦截器自动 WBI 签名）
      * 鉴权：SESSDATA Cookie（injectCookies）；半匿名时仅返回部分弹幕，属文档预期行为
      *
@@ -548,7 +548,7 @@ object BiliHttpApi {
     /**
      * 获取弹幕元数据（Web protobuf 接口）。
      *
-     * 对应文档：docs/bilibili-API-collect-master/docs/danmaku/danmaku_proto.md
+     * 对应文档：dev-doc/bilibili-API-collect-master/docs/danmaku/danmaku_proto.md
      * 端点：GET /x/v2/dm/web/view（非 WBI 端点，无需签名，与原版 playurl 策略一致以降低风控风险）
      * 鉴权：Cookie（injectCookies）；未登录可正常获取元数据
      *
@@ -1082,7 +1082,7 @@ object BiliHttpApi {
     /**
      * 获取视频同时观看人数（在线人数）。
      *
-     * 对应文档：docs/bilibili-API-collect-master/docs/video/online.md
+     * 对应文档：dev-doc/bilibili-API-collect-master/docs/video/online.md
      * 鉴权：无需登录，无需 WBI 签名（路径不含 wbi，签名拦截器不会处理）
      *
      * @param avid 稿件 avid，与 [bvid] 至少提供一个
@@ -1105,7 +1105,7 @@ object BiliHttpApi {
     /**
      * 获取视频同时观看人数（在线人数）— App 端。
      *
-     * 对应文档：docs/bilibili-API-collect-master/docs/video/online.md
+     * 对应文档：dev-doc/bilibili-API-collect-master/docs/video/online.md
      * 鉴权：appkey + sign（host 为 app.bilibili.com，签名拦截器自动追加）
      *
      * @param aid 稿件 avid
@@ -1157,7 +1157,7 @@ object BiliHttpApi {
     /**
      * 为视频[avid]点赞或取消赞（App 端）。
      *
-     * 对应文档：docs/bilibili-API-collect-master/docs/video/action.md §点赞视频（APP端）
+     * 对应文档：dev-doc/bilibili-API-collect-master/docs/video/action.md §点赞视频（APP端）
      * 鉴权：access_key
      *
      * @param avid 稿件 avid
@@ -1188,7 +1188,7 @@ object BiliHttpApi {
     /**
      * 检查视频[avid]或[bvid]是否已点赞
      *
-     * 对应文档：docs/bilibili-API-collect-master/docs/video/action.md §判断视频近期是否被点赞（双端）
+     * 对应文档：dev-doc/bilibili-API-collect-master/docs/video/action.md §判断视频近期是否被点赞（双端）
      * 鉴权：Cookie(SESSDATA) 或 APP(access_key)
      */
     suspend fun checkVideoLiked(
@@ -1251,7 +1251,7 @@ object BiliHttpApi {
     /**
      * 检查视频[avid]或[bvid]是否已投币
      *
-     * 对应文档：docs/bilibili-API-collect-master/docs/video/action.md §判断视频是否被投币（双端）
+     * 对应文档：dev-doc/bilibili-API-collect-master/docs/video/action.md §判断视频是否被投币（双端）
      * 鉴权：Cookie(SESSDATA) 或 APP(access_key)
      */
     suspend fun checkVideoSentCoin(
@@ -1275,7 +1275,7 @@ object BiliHttpApi {
     /**
      * 为视频[avid]投币（App 端）。
      *
-     * 对应文档：docs/bilibili-API-collect-master/docs/video/action.md §投币视频（APP端）
+     * 对应文档：dev-doc/bilibili-API-collect-master/docs/video/action.md §投币视频（APP端）
      * 鉴权：access_key
      *
      * @param avid 稿件 avid
@@ -1392,7 +1392,7 @@ object BiliHttpApi {
     /**
      * 为视频[avid]一键三连（App 端）。
      *
-     * 对应文档：docs/bilibili-API-collect-master/docs/video/action.md §一键三连（APP端）
+     * 对应文档：dev-doc/bilibili-API-collect-master/docs/video/action.md §一键三连（APP端）
      * 同时点赞投币收藏视频，收藏于默认收藏夹中。鉴权：access_key
      *
      * @param avid 稿件 avid

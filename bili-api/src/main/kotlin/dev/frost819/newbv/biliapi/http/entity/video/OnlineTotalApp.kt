@@ -7,7 +7,7 @@ import kotlinx.serialization.Serializable
  * 视频同时观看人数（在线人数）— App 端。
  *
  * 对应接口：GET https://app.bilibili.com/x/v2/view/video/online
- * 文档：docs/bilibili-API-collect-master/docs/video/online.md
+ * 文档：dev-doc/bilibili-API-collect-master/docs/video/online.md
  *
  * App 端无 show_switch 展示开关，直接返回服务端预格式化的文案。
  *

@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test
  *
  * 验证 protobuf [bilibili.community.service.dm.v1.DanmakuElem] 到实体字段映射：
  * progress（ms）→ time（s）、ctime 不除 1000、weight → level、mode/size/color/pool/midHash/id。
- * 对应文档：docs/bilibili-API-collect-master/docs/danmaku/danmaku_proto.md
+ * 对应文档：dev-doc/bilibili-API-collect-master/docs/danmaku/danmaku_proto.md
  */
 class DanmakuDataFromElemTest {
     @Test

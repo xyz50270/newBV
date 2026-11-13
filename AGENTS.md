@@ -1,7 +1,7 @@
 # AGENTS.md — new BV 开发指南
 
 > 本文档是 new BV 项目的 AI 协作开发规范，所有贡献者（含 AI Agent）必须遵守。
-> 配套文档：[PRD](docs/PRD.md) | [开发计划](docs/开发计划.md)
+> 配套文档：[PRD](dev-doc/PRD.md) | [开发计划](dev-doc/开发计划.md)
 
 ---
 
@@ -17,11 +17,18 @@ new BV 是基于 [BV](https://github.com/aaa1115910/bv)（源码在 `bv/` 目录
 
 | 文档 | 位置 | 用途 |
 |---|---|---|
-| PRD | `docs/PRD.md` | 完整需求规格（功能/架构/设置项/接口清单） |
-| 开发计划 | `docs/开发计划.md` | 阶段任务分解与验收标准 |
+| PRD | `dev-doc/PRD.md` | 完整需求规格（功能/架构/设置项/接口清单） |
+| 开发计划 | `dev-doc/开发计划.md` | 阶段任务分解与验收标准 |
 | BV 源码 | `bv/` | 参考实现（接口写法、数据模型、播放器逻辑） |
-| B 站 API 文档 | `docs/bilibili-API-collect-master/docs/` | 接口字段定义与参数说明 |
+| B 站 API 文档 | `dev-doc/bilibili-API-collect-master/docs/` | 接口字段定义与参数说明 |
 | 本文件 | `AGENTS.md` | 开发规范、测试策略、代码风格 |
+
+> ⚠️ **`dev-doc/` 在本 fork 中纳入版本控制**，会随仓库同步到 GitHub。
+> 上游自 v1.2.1 起把文档移出版本控制并忽略 `/docs/`；本 fork 改用 `dev-doc` 这个名字
+> 以便与上游约定区分，并显式保留跟踪（`.gitignore` 中**不要**加 `/dev-doc/`，
+> 否则文档会从仓库中消失）。本地更新 PRD / 开发计划后直接提交即可，克隆即得。
+> 但**不要把代码逻辑或构建流程依赖在 `dev-doc/` 里的文件上**——它们属于文档，
+> 不应参与编译或打包。
 
 ### 1.3 关键架构决策（不可违背）
 
@@ -48,7 +55,7 @@ newBV/
 ├── sponsorblock/           # 社区标注片段（广告/片头）跳过：API 客户端 + 跳过判定（纯 JVM）
 ├── player/                 # [待建] 播放器引擎抽象 + Media3 实现（从 bv/bv-player 迁移）
 ├── danmaku/                # [待建] 弹幕渲染封装（从 bv/app 散落代码抽取）
-├── docs/
+├── dev-doc/            # 本地文档，不纳入版本控制
 │   ├── PRD.md
 │   ├── 开发计划.md
 │   └── bilibili-API-collect-master/   # B 站 API 参考文档
@@ -312,7 +319,7 @@ dev.frost819.newbv/
 
 ### 4.3 参考 bilibili-API-collect 文档
 
-`docs/bilibili-API-collect-master/docs/` 是社区维护的 B 站 API 文档，包含字段定义、参数说明、错误码。
+`dev-doc/bilibili-API-collect-master/docs/` 是社区维护的 B 站 API 文档，包含字段定义、参数说明、错误码。
 
 **常用文档**：
 
@@ -382,7 +389,7 @@ npx playwright install chromium
 /**
  * 获取视频流地址（Web API）。
  *
- * 对应文档：docs/bilibili-API-collect-master/docs/video/videostream_url.md
+ * 对应文档：dev-doc/bilibili-API-collect-master/docs/video/videostream_url.md
  * 鉴权：SESSDATA Cookie + WBI 签名
  *
  * @param aid 视频 AV 号
@@ -902,9 +909,9 @@ items(detail.tags) { tag ->
 ## 10. 参考资源
 
 - [BV 原版源码](bv/) — 接口实现、数据模型、播放器逻辑参考
-- [B 站 API 文档](docs/bilibili-API-collect-master/docs/) — 接口字段与参数
-- [PRD](docs/PRD.md) — 完整需求规格
-- [开发计划](docs/开发计划.md) — 阶段任务分解
+- [B 站 API 文档](dev-doc/bilibili-API-collect-master/docs/) — 接口字段与参数
+- [PRD](dev-doc/PRD.md) — 完整需求规格
+- [开发计划](dev-doc/开发计划.md) — 阶段任务分解
 - [Jetpack Compose for TV](https://developer.android.com/training/tv/compose)
 - [Navigation-Compose](https://developer.android.com/guide/navigation)
 - [Hilt](https://dagger.dev/hilt/)
