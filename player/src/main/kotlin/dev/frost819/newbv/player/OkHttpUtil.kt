@@ -5,6 +5,7 @@ import dev.frost819.newbv.biliapi.http.util.BiliOkHttpClient
 import okhttp3.OkHttpClient
 import java.security.KeyStore
 import java.security.cert.CertificateFactory
+import java.util.concurrent.TimeUnit
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManagerFactory
@@ -24,10 +25,42 @@ import javax.net.ssl.X509TrustManager
  */
 object OkHttpUtil {
     /**
+     * 媒体请求的读超时（秒）。
+     *
+     * OkHttp 默认 10 秒。对视频流来说这个值偏长：CDN 节点卡住时播放器要干等 10 秒
+     * 才会抛出异常，而异常正是触发备用线路切换的信号，用户体感就是「画面卡死不恢复」。
+     * 收到 8 秒能让卡顿更快被判定为失败并切到下一个 CDN 候选。
+     *
+     * 不能压得更短：正常播放时单次 `read` 只需等下一个数据块，但首次连接后
+     * 服务端在处理 Range 请求、或是起播阶段需要下载 init segment 时，
+     * 间隔数秒才返回数据是常见情况，过短的超时会造成误判。
+     */
+    const val MEDIA_READ_TIMEOUT_SECONDS = 8L
+
+    /**
+     * 给共享 client 套上媒体专用的超时设置。
+     *
+     * 单独抽出（不依赖 Android）是为了能在 JVM 单测里断言超时值：
+     * [generateCustomSslOkHttpClient] 需要 `AndroidCAStore` 与 assets 证书，只能在
+     * 设备上运行；而超时策略是最容易在重构中被误删的参数，必须由测试守住。
+     *
+     * @param base 共享的 [BiliOkHttpClient.instance]
+     * @return 复用同一连接池、读超时收紧后的新实例
+     */
+    fun withMediaTimeouts(base: OkHttpClient): OkHttpClient =
+        base
+            .newBuilder()
+            .readTimeout(MEDIA_READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .build()
+
+    /**
      * 创建带自定义 SSL 配置的 OkHttpClient。
      *
      * 连接池参数保持 OkHttp 默认值（5 条空闲连接 / 5 分钟保活）；因为该 client
      * 在进程内共享，这就是播放器侧连接与线程数的全局上限。
+     *
+     * 读超时通过 [withMediaTimeouts] 收紧，让 CDN 卡顿时更快触发线路回退；
+     * 连接超时沿用共享实例的 5 秒。
      *
      * @param context Android Context，用于读取 assets 中的 CA 证书文件
      * @return 配置好 SSL 和域名验证的 OkHttpClient
@@ -71,7 +104,7 @@ object OkHttpUtil {
                 init(null, trustManagerFactory.trustManagers, null)
             }
 
-        return BiliOkHttpClient.instance
+        return withMediaTimeouts(BiliOkHttpClient.instance)
             .newBuilder()
             .sslSocketFactory(
                 sslContext.socketFactory,

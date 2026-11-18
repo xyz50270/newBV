@@ -1931,6 +1931,34 @@ positionMs >= (it.startMs - leadMs).coerceAtLeast(0L) && positionMs < it.startMs
   关闭后片段照常跳过，只是不给取消机会
 - 倒计时向上取整且下限 1 秒，避免出现「0 秒后自动跳过」
 
+#### 11.15.11 起播提速：连接预热与媒体读超时
+
+起播链路是串行的「取播放地址 → 选 CDN → ExoPlayer prepare」，`prepare` 之前不会与
+CDN 建任何连接，TCP 握手 + TLS 协商全部计入起播耗时。两项低成本优化：
+
+**① 连接预热（`player/ConnectionWarmer.kt`）**：解析出候选地址后立刻用
+`Range: bytes=0-0` 建连并归还连接池，ExoPlayer prepare 时直接复用，省一次 RTT。
+
+要点：
+- 只预热**首个候选**（`warmUpFirst`）。播放只用第一个地址，预热其余会白占连接池
+  空闲名额（池上限 10 条，媒体与接口共用）
+- 预热协程**不 await**，否则反而拖慢起播；失败静默忽略
+- 同一地址在 TTL（5 分钟）内只预热一次：切画质、音轨回退、重播都会重复走解析路径
+- **必须复用播放器那个共享 client**（`PlayerModule.providePlayerHttpClient`），
+  否则新连接池里的预热点和播放器用的不是同一批连接，预热等于无效
+- dispatcher 可注入（默认 `Dispatchers.IO`）。测试若用 `runTest` 的虚拟时间，
+  必须注入 `StandardTestDispatcher(testScheduler)`，否则 `advanceUntilIdle`
+  推不动跑在真实 IO 线程上的预热协程
+
+**② 媒体读超时收紧（`OkHttpUtil.withMediaTimeouts`）**：OkHttp 默认 10 秒，
+CDN 节点卡住时播放器干等 10 秒才抛异常，而异常才是触发备用线路切换的信号。
+收紧到 8 秒让卡顿更快被判定失败。不能更短——起播阶段下载 init segment 时
+间隔数秒返回数据是常见情况，过短会误判。
+
+超时逻辑抽成不依赖 Android 的 `withMediaTimeouts(base)` 是为了可测：
+`generateCustomSslOkHttpClient` 需要 `AndroidCAStore` 与 assets 证书，JVM 单测跑不了，
+而超时是最容易在重构中被误删的参数，必须由 `OkHttpUtilTest` 守住。
+
 ### 11.16 更新检查与发版仓库
 
 更新检查的仓库地址有**唯一配置源**：`buildSrc/src/main/kotlin/AppConfiguration.kt` 的

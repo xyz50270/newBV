@@ -45,6 +45,7 @@ import dev.frost819.newbv.data.datastore.Resolution
 import dev.frost819.newbv.data.datastore.VideoCodec
 import dev.frost819.newbv.player.AbstractVideoPlayer
 import dev.frost819.newbv.player.CdnSelector
+import dev.frost819.newbv.player.ConnectionWarmer
 import dev.frost819.newbv.player.VideoPlayerListener
 import dev.frost819.newbv.player.VideoPlayerOptions
 import dev.frost819.newbv.player.impl.exo.ExoPlayerFactory
@@ -106,6 +107,7 @@ private val AUDIO_FALLBACK_ORDER = listOf(Audio.A192K, Audio.A132K, Audio.A64K)
  * @param exoPlayerFactory ExoPlayer 工厂
  * @param videoCapabilityProvider 设备视频解码能力查询器（选流时过滤超能力组合）
  * @param cdnSelector CDN 测速选择器（开启自动选源时用于排序候选地址）
+ * @param playerHttpClient 播放器媒体请求共用的 OkHttpClient（连接预热复用同一连接池）
  */
 @HiltViewModel
 class PlayerViewModel
@@ -121,6 +123,7 @@ class PlayerViewModel
         private val favoriteRepository: FavoriteRepository,
         private val oneClickTripleActionRepository: OneClickTripleActionRepository,
         private val cdnSelector: CdnSelector,
+        playerHttpClient: okhttp3.OkHttpClient,
     ) : ViewModel() {
         private val logger = Loggers.get("PlayerViewModel")
 
@@ -158,6 +161,14 @@ class PlayerViewModel
 
         /** 运行时 CDN 回退已尝试到的候选下标。 */
         private var cdnFallbackIndex = 0
+
+        /**
+         * 播放地址连接预热器。
+         *
+         * 用 `viewModelScope` 承载预热协程：播放页被覆盖时 VM 仍存活，预热结果依然有效；
+         * 退出页面时随 VM 一并取消。
+         */
+        private val connectionWarmer = ConnectionWarmer(playerHttpClient, viewModelScope)
 
         private val detachedWorkScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -1306,6 +1317,12 @@ class PlayerViewModel
             val videoUrl = videoCdnCandidates.firstOrNull() ?: return null
             val audioUrl = audioCdnCandidates.firstOrNull()
 
+            // 起播前预热连接：ExoPlayer prepare 才会真正建连，提前把 TCP/TLS 握手
+            // 放在解析之后的这段时间里完成，省掉一次 RTT。预热是异步且尽力而为的，
+            // 失败不影响播放；这里不 await，否则反而把起播拖慢。
+            connectionWarmer.warmUp(videoUrl)
+            connectionWarmer.warmUp(audioUrl)
+
             _uiState.update { it.copy(videoHeight = foundVideo.height, videoWidth = foundVideo.width) }
             return MediaUrls(videoUrl, audioUrl)
         }
@@ -1518,6 +1535,8 @@ class PlayerViewModel
             val videoUrl = videoCdnCandidates.getOrNull(nextIndex) ?: return false
             cdnFallbackIndex = nextIndex
             val audioUrl = audioCdnCandidates.firstOrNull()
+            // 回退同样预热：切到新 host 后通常要重新握手，先建连可缩短恢复时间
+            connectionWarmer.warmUp(videoUrl)
             val position = player.currentPosition
             logger.info { "CDN fallback #$nextIndex -> $videoUrl" }
             viewModelScope.launch {

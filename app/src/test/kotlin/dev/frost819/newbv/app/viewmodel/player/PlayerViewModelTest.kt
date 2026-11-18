@@ -55,6 +55,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import okhttp3.OkHttpClient
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -88,6 +89,9 @@ class PlayerViewModelTest {
     private lateinit var favoriteRepository: FavoriteRepository
     private lateinit var oneClickTripleActionRepository: OneClickTripleActionRepository
     private lateinit var cdnSelector: CdnSelector
+
+    /** 预热器用的 media client；用 relaxed mock 避免连接预热真的发请求。 */
+    private lateinit var okHttpClient: OkHttpClient
     private lateinit var viewModel: PlayerViewModel
     private lateinit var mockPlayer: AbstractVideoPlayer
 
@@ -106,6 +110,7 @@ class PlayerViewModelTest {
         favoriteRepository = mockk(relaxed = true)
         oneClickTripleActionRepository = mockk(relaxed = true)
         cdnSelector = mockk(relaxed = true)
+        okHttpClient = mockk(relaxed = true)
 
         mockkObject(Prefs)
         every { Prefs.apiType } returns DataApiType.Web
@@ -137,6 +142,7 @@ class PlayerViewModelTest {
                 favoriteRepository = favoriteRepository,
                 oneClickTripleActionRepository = oneClickTripleActionRepository,
                 cdnSelector = cdnSelector,
+                playerHttpClient = okHttpClient,
             )
     }
 
