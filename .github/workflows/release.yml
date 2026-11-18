@@ -115,11 +115,34 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: python3 .github/scripts/generate_release_body.py release_body.md
 
+      # 备用更新通道的数据源：公益镜像只代理文件路径、不代理 api.github.com，
+      # 因此把检查更新所需的字段随版本一起上传，客户端直连失败时读这个清单。
+      # 文件名必须与 GithubApi.MANIFEST_ASSET_NAME 一致。
+      - name: Generate release manifest
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+          VERSION_CODE: ${{ env.versionCode }}
+          VERSION_NAME: ${{ env.versionName }}
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/release/newBV_${VERSION_CODE}_${VERSION_NAME}_release.apk"
+          if [ ! -f "$APK" ]; then
+            echo "::error::找不到 APK：$APK"
+            exit 1
+          fi
+          export versionCode="$VERSION_CODE"
+          export versionName="$VERSION_NAME"
+          export APK_SIZE
+          APK_SIZE=$(stat -c%s "$APK")
+          python3 .github/scripts/generate_release_manifest.py latest.json
+          cat latest.json
+
       - name: Publish Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             app/build/outputs/apk/release/newBV_${{ env.versionCode }}_${{ env.versionName }}_release.apk
+            latest.json
           tag_name: ${{ github.ref_name }}
           name: newBV ${{ env.versionName }}
           body_path: release_body.md

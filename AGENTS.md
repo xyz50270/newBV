@@ -1983,3 +1983,38 @@ GitHub 的错误体是 `{"message":"Not Found","status":"404"}`，所以用
 `.github/workflows/release.yml` 的 job 有 `if: github.repository == 'xyz50270/newBV'`。
 fork 关系下上游仓库打 tag 也会触发下游 workflow，没有这个守卫会把包发到错误仓库。
 换仓库时这一行必须同步改，否则新仓库永远发不出版本（而旧仓库会被误发）。
+
+#### 11.16.3 备用更新通道：镜像不能代理 API
+
+**踩过的坑**：想给「检查更新」加镜像回退时，第一反应是把 `api.github.com` 的请求
+套上 `ghfast.top` 前缀。实测行不通——镜像**只代理文件路径**：
+
+| 路径类型 | 经 ghfast.top |
+|---|---|
+| `releases/download/.../<asset>` | ✅ 200，返回真实文件 |
+| `archive/refs/heads/main.zip` | ✅ 200 |
+| `raw.githubusercontent.com/...` | ✅ 200（偶发失败，重试可用） |
+| `api.github.com/repos/...` | ❌ 403 `Invalid input.` |
+| `releases.atom` | ❌ 403 |
+
+其它镜像也没解决：`gh-proxy.com` 404、`ghproxy.net` 连不通、`gh.llkk.cc` 522。
+`ghproxy.cfd` 返回 200 但内容是伪装成镜像的盗版视频站——**探测镜像时必须校验
+响应内容，不能只看状态码**。
+
+**方案**：发版时把检查更新所需的字段写成 `latest.json`，作为 Release 附件上传
+（`.github/scripts/generate_release_manifest.py`）。客户端直连 API 失败后读：
+
+```
+https://ghfast.top/https://github.com/<owner>/<repo>/releases/latest/download/latest.json
+```
+
+关键点在于 `releases/latest/download/<name>` 是 GitHub 的**固定语义路径**：
+`latest` 会被解析为当前最新 Release，所以这个 URL 无需预知版本号就能指向最新清单。
+
+**约束**：
+- 清单附件名必须与 `GithubApi.MANIFEST_ASSET_NAME` 一致（有单测守护），
+  否则只在网络受限的环境才暴露 404
+- `downloadUpdate` 回退前必须删除已写入的部分文件，否则会把两次下载拼成损坏 APK
+- `toMirrorUrl` 必须幂等：重试路径会再次转换，重复加前缀会拼出无效地址
+- 「尚无 Release」是确定结论而非网络故障，不应触发镜像回退
+

@@ -71,4 +71,31 @@ class GithubApiTest {
         assertThat(error.message).contains(GithubApi.OWNER)
         assertThat(error.message).contains(GithubApi.REPO)
     }
+
+    // ── 备用镜像通道 ────────────────────────────────────────
+
+    @Test
+    fun `toMirrorUrl prefixes github url`() {
+        val original = "https://github.com/${GithubApi.OWNER}/${GithubApi.REPO}/releases/download/v1.0.0/a.apk"
+
+        val mirrored = GithubApi.toMirrorUrl(original)
+
+        assertThat(mirrored).isEqualTo("https://ghfast.top/$original")
+    }
+
+    @Test
+    fun `toMirrorUrl is idempotent`() {
+        val original = "https://github.com/${GithubApi.OWNER}/${GithubApi.REPO}/releases/download/v1.0.0/a.apk"
+        val once = GithubApi.toMirrorUrl(original)
+
+        // 重试路径上会再次转换，重复加前缀会拼出无效地址
+        assertThat(GithubApi.toMirrorUrl(once)).isEqualTo(once)
+    }
+
+    @Test
+    fun `manifest asset name matches ci upload name`() {
+        // 与 .github/workflows/release.yml 中生成的文件名、以及客户端请求的附件名必须一致，
+        // 否则备用通道会 404，且只在网络受限的环境下才暴露
+        assertThat(GithubApi.MANIFEST_ASSET_NAME).isEqualTo("latest.json")
+    }
 }
