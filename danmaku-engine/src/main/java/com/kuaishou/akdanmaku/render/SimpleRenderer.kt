@@ -87,6 +87,7 @@ open class SimpleRenderer : DanmakuRenderer {
         // update strokePaint
         strokePaint.textSize = textPaint.textSize
         strokePaint.typeface = textPaint.typeface
+        strokePaint.strokeWidth = strokeWidthFor(textPaint.textSize)
         strokePaint.color = if (textPaint.color == DEFAULT_DARK_COLOR) Color.WHITE else Color.BLACK
     }
 
@@ -99,7 +100,11 @@ open class SimpleRenderer : DanmakuRenderer {
         val danmakuItemData = item.data
         val textWidth = textPaint.measureText(danmakuItemData.content)
         val textHeight = getCacheHeight(textPaint)
-        return Size(textWidth.roundToInt() + CANVAS_PADDING, textHeight.roundToInt() + CANVAS_PADDING)
+        // 左右各留 padding/2，上下由字体度量本身覆盖，因此高度只加一份 padding
+        return Size(
+            (textWidth + canvasPadding).roundToInt(),
+            (textHeight + canvasPadding).roundToInt(),
+        )
     }
 
     override fun draw(
@@ -110,8 +115,9 @@ open class SimpleRenderer : DanmakuRenderer {
     ) {
         updatePaint(item, displayer, config)
         val danmakuItemData = item.data
-        val x = CANVAS_PADDING * 0.5f
-        val y = CANVAS_PADDING * 0.5f - textPaint.ascent()
+        val padding = canvasPadding
+        val x = padding * 0.5f
+        val y = padding * 0.5f - textPaint.ascent()
         canvas.drawText(danmakuItemData.content, x, y, strokePaint)
         canvas.drawText(danmakuItemData.content, x, y, textPaint)
         if (danmakuItemData.danmakuStyle == DanmakuItemData.DANMAKU_STYLE_SELF_SEND) {
@@ -119,10 +125,44 @@ open class SimpleRenderer : DanmakuRenderer {
         }
     }
 
+    /**
+     * 当前描边宽度对应的画布内边距。
+     *
+     * `FILL_AND_STROKE` 的描边会向外扩展 `strokeWidth / 2`，内边距必须大于该值，
+     * 否则大字号弹幕的描边会被画布裁掉一圈。留 1.5 倍余量吸收抗锯齿溢出。
+     */
+    private val canvasPadding: Float
+        get() = maxOf(MIN_CANVAS_PADDING, strokePaint.strokeWidth * 1.5f)
+
     companion object {
         private val DEFAULT_DARK_COLOR: Int = Color.argb(255, 0x22, 0x22, 0x22)
 
-        private const val CANVAS_PADDING: Int = 6
+        /** 画布内边距下限（像素）。 */
+        private const val MIN_CANVAS_PADDING = 6f
+
+        /**
+         * 描边宽度占字号的比例。
+         *
+         * 原来固定 3px，但字号是随设置变化的（`textSize` × `density - 0.6` × 用户
+         * 缩放 0.5~4），电视上大字号可达 100px 以上，此时 3px 描边只有字号的 3%，
+         * 白字叠在浅色画面上几乎糊成一片——这正是「弹幕和白色背景混在一起」的原因。
+         * 按比例计算后描边始终占字号的约 9%，任何字号下都能提供一致的轮廓对比度。
+         */
+        private const val STROKE_WIDTH_RATIO = 0.09f
+
+        /** 描边宽度下限（像素）：小字号下也要能看清轮廓。 */
+        private const val MIN_STROKE_WIDTH = 2.5f
+
+        /** 描边宽度上限（像素）：避免极大字号下描边粗到吃掉字形内部的笔画。 */
+        private const val MAX_STROKE_WIDTH = 14f
+
+        /**
+         * 按字号计算描边宽度。
+         *
+         * @param textSize 已应用设备密度与用户缩放后的实际字号（像素）
+         */
+        internal fun strokeWidthFor(textSize: Float): Float =
+            (textSize * STROKE_WIDTH_RATIO).coerceIn(MIN_STROKE_WIDTH, MAX_STROKE_WIDTH)
 
         private val sTextHeightCache: MutableMap<Float, Float> = HashMap()
 
